@@ -84,6 +84,7 @@ export default function App() {
   const [pwError, setPwError]         = useState(false);
   const [view, setView]               = useState("dashboard");
   const [notification, setNotification] = useState(null);
+  const [successModal, setSuccessModal] = useState(null); // { title, body }
 
   // Admin – adjust individual
   const [adjTarget, setAdjTarget] = useState("");
@@ -191,7 +192,7 @@ export default function App() {
 
   // ── Admin: adjust single ────────────────────────────────────────────────
   const doAdjust = async () => {
-    if (!adjTarget) { notify("請選擇員工", "error"); return; }
+    if (!adjTarget) { notify("請選擇同工", "error"); return; }
     if (!adjNote.trim()) { notify("請填寫說明", "error"); return; }
     const emp = employees.find(e => e.id === adjTarget);
     const delta = adjDir === "+" ? +adjAmt : -adjAmt;
@@ -229,7 +230,7 @@ export default function App() {
   // ── Admin: register leave ───────────────────────────────────────────────
   const doRegLeave = async () => {
     const emp = employees.find(e => e.id === regEmp);
-    if (!emp) { notify("請選擇員工", "error"); return; }
+    if (!emp) { notify("請選擇同工", "error"); return; }
     if (!regDateStart) { notify("請選擇日期", "error"); return; }
     const dur = regDur === "custom" ? +regCustomDays : +regDur;
     if (!dur || dur <= 0) { notify("請輸入有效天數", "error"); return; }
@@ -272,6 +273,7 @@ export default function App() {
       note: empNote || "請假", by: emp.name,
     });
     notify("請假成功！");
+    setSuccessModal({ title: "✅ 請假登記成功", body: `已登記 ${durLabel} 請假（${empDateStart}），假期已自動扣除。` });
     setEmpNote(""); setEmpDateStart("");
   };
 
@@ -287,9 +289,10 @@ export default function App() {
     await addLeaveRecord({
       empId: emp.id, empName: emp.name,
       type: "補休（加班）", date: dateLabel,
-      duration: `+${durLabel}`, note: "員工自行登記加班", by: emp.name,
+      duration: `+${durLabel}`, note: "同工自行登記加班", by: emp.name,
     });
     notify(`✅ 已新增補休 ${durLabel}`);
+    setSuccessModal({ title: "✅ 加班補休登記成功", body: `已新增 ${durLabel} 補休（${otDateStart}），補休天數已即時更新。` });
     setOtDateStart(""); setOtCustomDays("2");
   };
 
@@ -302,14 +305,14 @@ export default function App() {
     await addLeaveRecord({
       empId: emp.id, empName: emp.name,
       type: "補休（加班核准）", date: req.date,
-      duration: `+${req.dur}天`, note: "加班申請核准", by: "管理員",
+      duration: `+${req.dur}天`, note: "加班登記核准", by: "管理員",
     });
-    notify(`已核准 ${req.empName} 的申請，+${req.dur} 天補休`);
+    notify(`已核准 ${req.empName} 的登記，+${req.dur} 天補休`);
   };
 
   const rejectOT = async (id) => {
     await updateOtStatus(id, "rejected");
-    notify("已拒絕申請", "error");
+    notify("已拒絕登記", "error");
   };
 
   // ── Employee management ─────────────────────────────────────────────────
@@ -318,13 +321,13 @@ export default function App() {
     const id = `emp_${Date.now()}`;
     const emp = { id, name: newName.trim(), annualDays: +newAnnual, compDays: 0 };
     await saveEmployee(emp);
-    notify(`已新增員工「${emp.name}」`);
+    notify(`已新增同工「${emp.name}」`);
     setNewName(""); setNewAnnual(10);
   };
 
   const removeEmployee = async (id) => {
     await deleteEmployee(id);
-    notify("已刪除員工", "error");
+    notify("已刪除同工", "error");
   };
 
   // ── Admin: delete record ────────────────────────────────────────────────
@@ -391,6 +394,22 @@ export default function App() {
     </div>
   );
 
+  // ── Success Modal ────────────────────────────────────────────────────────
+  const SuccessModal = () => !successModal ? null : (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:24 }}>
+      <div style={{ background:"#fff", borderRadius:20, padding:36, width:"100%", maxWidth:380, boxShadow:"0 25px 60px rgba(0,0,0,0.3)", textAlign:"center", fontFamily:"inherit" }}>
+        <div style={{ fontSize:52, marginBottom:12 }}>🎉</div>
+        <h2 style={{ fontSize:18, fontWeight:900, color:"#1e293b", marginBottom:10 }}>{successModal.title}</h2>
+        <p style={{ fontSize:14, color:"#64748b", marginBottom:24, lineHeight:1.6 }}>{successModal.body}</p>
+        <button
+          onClick={() => setSuccessModal(null)}
+          style={{ background:"#2563eb", color:"#fff", border:"none", borderRadius:10, padding:"11px 32px", cursor:"pointer", fontSize:14, fontWeight:700, fontFamily:"inherit" }}>
+          確定
+        </button>
+      </div>
+    </div>
+  );
+
   // ── Loading ──────────────────────────────────────────────────────────────
   if (loading) return (
     <div style={S.loading}>⏳ 載入中...</div>
@@ -401,6 +420,7 @@ export default function App() {
   // ────────────────────────────────────────────────────────────────────────
   if (!role) return (
     <div style={S.landing}>
+      <SuccessModal />
       <div style={S.landingCard}>
         <div style={{ textAlign:"center", marginBottom:24 }}>
           <div style={{ fontSize:46 }}>🌿</div>
@@ -412,7 +432,7 @@ export default function App() {
         <div style={{ ...S.tableWrap, marginBottom:22 }}>
           <table style={S.table}>
             <thead>
-              <tr>{["員工","匠假期日","補休","合計"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
+              <tr>{["同工","匠假期日","補休","合計"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
             </thead>
             <tbody>
               {employees.map(e => (
@@ -435,7 +455,7 @@ export default function App() {
           {/* Employee login */}
           <div style={S.loginBox}>
             <div style={{ fontSize:20 }}>👤</div>
-            <h2 style={S.loginTitle}>員工登入</h2>
+            <h2 style={S.loginTitle}>同工登入</h2>
             <div style={{ display:"flex", flexDirection:"column", gap:6, maxHeight:200, overflowY:"auto" }}>
               {employees.map(emp => (
                 <button key={emp.id} onClick={() => loginEmp(emp)} style={S.empBtn}>
@@ -467,6 +487,7 @@ export default function App() {
   // ────────────────────────────────────────────────────────────────────────
   if (role === "admin") return (
     <div style={S.app}>
+      <SuccessModal />
       {notification && <div style={{ ...S.toast, background: notification.type === "error" ? "#ef4444" : "#10b981" }}>{notification.msg}</div>}
       <nav style={S.nav}>
         <div style={S.brand}>🌿 假期管理 <span style={S.adminBadge}>管理員</span></div>
@@ -477,7 +498,7 @@ export default function App() {
             ["adjust","✏️ 個人調整"],
             ["leave","📝 登記請假"],
             ["records","📋 紀錄"],
-            ["employees","👥 員工管理"],
+            ["employees","👥 同工管理"],
           ].map(([id, label]) => (
             <button key={id} onClick={() => setView(id)}
               style={{ ...S.tab, ...(view === id ? S.tabActive : {}) }}>
@@ -491,10 +512,10 @@ export default function App() {
 
         {/* ── 總覽 ── */}
         {view === "dashboard" && <>
-          <h2 style={S.title}>員工假期總覽</h2>
+          <h2 style={S.title}>同工假期總覽</h2>
           <div style={S.tableWrap}>
             <table style={S.table}>
-              <thead><tr>{["員工","匠假期日","補休","合計可用"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+              <thead><tr>{["同工","匠假期日","補休","合計可用"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
               <tbody>
                 {employees.map(e => (
                   <tr key={e.id} style={S.tr}>
@@ -513,7 +534,7 @@ export default function App() {
         {view === "bulk" && <>
           <h2 style={S.title}>全員增加假期</h2>
           <div style={S.card}>
-            <p style={{ color:"#64748b", fontSize:14, marginBottom:18 }}>一次為所有員工增加天數。</p>
+            <p style={{ color:"#64748b", fontSize:14, marginBottom:18 }}>一次為所有同工增加天數。</p>
             <div style={S.formGrid}>
               <div style={S.fg}>
                 <label style={S.label}>假期類型</label>
@@ -531,7 +552,7 @@ export default function App() {
               </div>
             </div>
             <div style={S.previewBox}>
-              將為 <strong>{employees.length}</strong> 位員工各增加 <strong>{bulkAmt} 天</strong>
+              將為 <strong>{employees.length}</strong> 位同工各增加 <strong>{bulkAmt} 天</strong>
               （{bulkField === "annualDays" ? "匠假期日" : "補休"}）：{employees.map(e => e.name).join("、")}
             </div>
             <button onClick={doBulk} style={{ ...S.btnPrimary, background:"#7c3aed" }}>✓ 確認全員加假</button>
@@ -544,9 +565,9 @@ export default function App() {
           <div style={S.card}>
             <div style={S.formGrid}>
               <div style={S.fg}>
-                <label style={S.label}>選擇員工</label>
+                <label style={S.label}>選擇同工</label>
                 <select value={adjTarget} onChange={e => setAdjTarget(e.target.value)} style={S.select}>
-                  <option value="">-- 選擇員工 --</option>
+                  <option value="">-- 選擇同工 --</option>
                   {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
                 </select>
               </div>
@@ -582,14 +603,14 @@ export default function App() {
 
         {/* ── 登記請假 ── */}
         {view === "leave" && <>
-          <h2 style={S.title}>登記員工請假</h2>
+          <h2 style={S.title}>登記同工請假</h2>
           <div style={S.card}>
             <div style={S.infoBox}>系統自動扣除：先扣匠假期日，不足再扣補休。</div>
             <div style={S.formGrid}>
               <div style={S.fg}>
-                <label style={S.label}>員工</label>
+                <label style={S.label}>同工</label>
                 <select value={regEmp} onChange={e => setRegEmp(e.target.value)} style={S.select}>
-                  <option value="">-- 選擇員工 --</option>
+                  <option value="">-- 選擇同工 --</option>
                   {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
                 </select>
               </div>
@@ -627,7 +648,7 @@ export default function App() {
                 <h3 style={{ fontSize:16, fontWeight:700, color:"#1e293b", marginBottom:16 }}>編輯紀錄</h3>
                 <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
                   <div style={S.fg}>
-                    <label style={S.label}>員工</label>
+                    <label style={S.label}>同工</label>
                     <div style={{ fontSize:13, color:"#334155", padding:"9px 11px", background:"#f8fafc", borderRadius:8 }}>{editRec.empName}</div>
                   </div>
                   <div style={S.fg}>
@@ -660,7 +681,7 @@ export default function App() {
             : (
             <div style={S.tableWrap}>
               <table style={S.table}>
-                <thead><tr>{["員工","類型","日期","天數","詳細內容","操作者","操作"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                <thead><tr>{["同工","類型","日期","天數","詳細內容","操作者","操作"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
                 <tbody>
                   {leaveRecords.map(r => (
                     <tr key={r.id} style={S.tr}>
@@ -684,22 +705,22 @@ export default function App() {
           )}
         </>}
 
-        {/* ── 員工管理 ── */}
+        {/* ── 同工管理 ── */}
         {view === "employees" && <>
-          <h2 style={S.title}>員工管理</h2>
+          <h2 style={S.title}>同工管理</h2>
           <div style={S.card}>
-            <h3 style={{ ...S.label, fontSize:14, marginBottom:12 }}>新增員工</h3>
+            <h3 style={{ ...S.label, fontSize:14, marginBottom:12 }}>新增同工</h3>
             <div style={S.formGrid}>
               <div style={S.fg}>
                 <label style={S.label}>姓名</label>
-                <input placeholder="員工姓名" value={newName} onChange={e => setNewName(e.target.value)} style={S.input} />
+                <input placeholder="同工姓名" value={newName} onChange={e => setNewName(e.target.value)} style={S.input} />
               </div>
               <div style={S.fg}>
                 <label style={S.label}>初始匠假期日天數</label>
                 <input type="number" min="0" value={newAnnual} onChange={e => setNewAnnual(e.target.value)} style={S.input} />
               </div>
             </div>
-            <button onClick={addEmployee} style={S.btnPrimary}>新增員工</button>
+            <button onClick={addEmployee} style={S.btnPrimary}>新增同工</button>
           </div>
           <div style={S.tableWrap}>
             <table style={S.table}>
@@ -730,14 +751,15 @@ export default function App() {
   // ────────────────────────────────────────────────────────────────────────
   return (
     <div style={S.app}>
+      <SuccessModal />
       {notification && <div style={{ ...S.toast, background: notification.type === "error" ? "#ef4444" : "#10b981" }}>{notification.msg}</div>}
       <nav style={S.nav}>
         <div style={S.brand}>🌿 假期管理</div>
         <div style={S.tabs}>
           {[
             ["my-leave","📅 我的假期"],
-            ["apply-leave","📝 申請請假"],
-            ["apply-ot","⏰ 申請加班補休"],
+            ["apply-leave","📝 登記請假"],
+            ["apply-ot","⏰ 登記加班補休"],
           ].map(([id, label]) => (
             <button key={id} onClick={() => setView(id)}
               style={{ ...S.tab, ...(view === id ? S.tabActive : {}) }}>{label}</button>
@@ -787,9 +809,9 @@ export default function App() {
           )}
         </>}
 
-        {/* ── 申請請假 ── */}
+        {/* ── 登記請假 ── */}
         {view === "apply-leave" && <>
-          <h2 style={S.title}>申請請假</h2>
+          <h2 style={S.title}>登記請假</h2>
           <div style={S.card}>
             <div style={S.infoBox}>
               匠假期日：<strong>{me?.annualDays} 天</strong>｜補休：<strong>{me?.compDays} 天</strong>
@@ -810,11 +832,11 @@ export default function App() {
                   onChange={e => setEmpNote(e.target.value)} style={S.textarea} />
               </div>
             </div>
-            <button onClick={doEmpLeave} style={S.btnPrimary}>送出請假</button>
+            <button onClick={doEmpLeave} style={S.btnPrimary}>確認登記請假</button>
           </div>
         </>}
 
-        {/* ── 申請加班補休 ── */}
+        {/* ── 登記加班補休 ── */}
         {view === "apply-ot" && <>
           <h2 style={S.title}>登記加班補休</h2>
           <div style={S.card}>

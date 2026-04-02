@@ -622,11 +622,6 @@ export default function App() {
                   dateStart={regDateStart} setDateStart={setRegDateStart}
                 />
               </div>
-              <div style={{ ...S.fg, gridColumn:"1 / -1" }}>
-                <label style={S.label}>詳細內容</label>
-                <textarea placeholder="請假原因、備註..." value={regNote}
-                  onChange={e => setRegNote(e.target.value)} style={S.textarea} />
-              </div>
             </div>
             {regEmp && (() => {
               const e = employees.find(x => x.id === regEmp);
@@ -825,11 +820,6 @@ export default function App() {
                   customDays={empCustomDays} setCustomDays={setEmpCustomDays}
                   dateStart={empDateStart} setDateStart={setEmpDateStart}
                 />
-              </div>
-              <div style={S.fg}>
-                <label style={S.label}>詳細內容</label>
-                <textarea placeholder="請假原因、備註..." value={empNote}
-                  onChange={e => setEmpNote(e.target.value)} style={S.textarea} />
               </div>
             </div>
             <button onClick={doEmpLeave} style={S.btnPrimary}>確認登記請假</button>

@@ -60,6 +60,14 @@ export async function addLeaveRecord(rec) {
   await addDoc(leaveRecordsCol, { ...rec, createdAt: serverTimestamp() });
 }
 
+export async function deleteLeaveRecord(id) {
+  await deleteDoc(doc(db, "leaveRecords", id));
+}
+
+export async function updateLeaveRecord(id, fields) {
+  await updateDoc(doc(db, "leaveRecords", id), fields);
+}
+
 // ── OT Requests ──────────────────────────────────────────────────────────────
 export async function addOtRequest(req) {
   await addDoc(otRequestsCol, { ...req, createdAt: serverTimestamp() });

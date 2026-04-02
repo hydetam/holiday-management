@@ -236,11 +236,9 @@ export default function App() {
     const result = calcDeduct(emp, dur);
     if (!result.ok) { notify(`${emp.name} 假期不足！`, "error"); return; }
     await updateEmployeeDays(emp.id, result.newAnnual, result.newComp);
-    const dateLabel = regDur === "0.5"
-      ? regDateStart
-      : regDateEnd && regDateEnd !== regDateStart
-        ? `${regDateStart} ～ ${regDateEnd}`
-        : regDateStart;
+    const dateLabel = regDur === "0.5" ? regDateStart
+      : regDur === "1"      ? regDateStart
+      : `${regDateStart} 起 ${dur} 天`;
     const durLabel = regDur === "0.5" ? "半天" : regDur === "1" ? "全天" : `${dur} 天`;
     await addLeaveRecord({
       empId: emp.id, empName: emp.name,
@@ -250,7 +248,7 @@ export default function App() {
       note: regNote || "請假", by: "管理員",
     });
     notify(`${emp.name} 請假 ${durLabel} 已登記`);
-    setRegNote(""); setRegDateStart(""); setRegDateEnd("");
+    setRegNote(""); setRegDateStart("");
   };
 
   // ── Employee: apply leave (no approval needed) ──────────────────────────
@@ -262,11 +260,9 @@ export default function App() {
     const result = calcDeduct(emp, dur);
     if (!result.ok) { notify("假期不足！", "error"); return; }
     await updateEmployeeDays(emp.id, result.newAnnual, result.newComp);
-    const dateLabel = empDur === "0.5"
-      ? empDateStart
-      : empDateEnd && empDateEnd !== empDateStart
-        ? `${empDateStart} ～ ${empDateEnd}`
-        : empDateStart;
+    const dateLabel = empDur === "0.5" ? empDateStart
+      : empDur === "1"      ? empDateStart
+      : `${empDateStart} 起 ${dur} 天`;
     const durLabel = empDur === "0.5" ? "半天" : empDur === "1" ? "全天" : `${dur} 天`;
     await addLeaveRecord({
       empId: emp.id, empName: emp.name,
@@ -276,25 +272,25 @@ export default function App() {
       note: empNote || "請假", by: emp.name,
     });
     notify("請假成功！");
-    setEmpNote(""); setEmpDateStart(""); setEmpDateEnd("");
+    setEmpNote(""); setEmpDateStart("");
   };
 
-  // ── Employee: submit OT (no reason needed) ──────────────────────────────
+  // ── Employee: submit OT → directly add comp days, no approval ─────────
   const doOT = async () => {
     if (!otDateStart) { notify("請選擇日期", "error"); return; }
     const dur = otDur === "custom" ? +otCustomDays : +otDur;
     if (!dur || dur <= 0) { notify("請輸入有效天數", "error"); return; }
-    const dateLabel = otDur === "0.5"
-      ? otDateStart
-      : otDateEnd && otDateEnd !== otDateStart
-        ? `${otDateStart} ～ ${otDateEnd}`
-        : otDateStart;
-    await addOtRequest({
-      empId: currentUser.id, empName: currentUser.name,
-      dur, date: dateLabel, status: "pending",
+    const emp = employees.find(e => e.id === currentUser.id);
+    await updateEmployeeDays(emp.id, emp.annualDays, +(emp.compDays + dur).toFixed(1));
+    const durLabel = otDur === "0.5" ? "半天" : otDur === "1" ? "全天" : `${dur} 天`;
+    const dateLabel = otDur === "custom" ? `${otDateStart}（共 ${dur} 天）` : otDateStart;
+    await addLeaveRecord({
+      empId: emp.id, empName: emp.name,
+      type: "補休（加班）", date: dateLabel,
+      duration: `+${durLabel}`, note: "員工自行登記加班", by: emp.name,
     });
-    notify("加班補休申請已送出，等待審核");
-    setOtDateStart(""); setOtDateEnd("");
+    notify(`✅ 已新增補休 ${durLabel}`);
+    setOtDateStart(""); setOtCustomDays("2");
   };
 
   // ── Admin: approve OT ───────────────────────────────────────────────────
@@ -373,35 +369,25 @@ export default function App() {
     </div>
   );
 
-  // Duration picker: 半天 / 全天 / 多天（自訂）
-  const DurPicker = ({ dur, setDur, customDays, setCustomDays, dateStart, setDateStart, dateEnd, setDateEnd, showHalf = true }) => (
+  // Duration picker: 半天 / 全天 / 多天
+  const DurPicker = ({ dur, setDur, customDays, setCustomDays, dateStart, setDateStart, showHalf = true }) => (
     <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
       <div style={S.toggle}>
         {showHalf && <button onClick={() => setDur("0.5")} style={{ ...S.toggleBtn, ...(dur === "0.5" ? S.toggleActive : {}) }}>半天</button>}
         <button onClick={() => setDur("1")} style={{ ...S.toggleBtn, ...(dur === "1" ? S.toggleActive : {}) }}>全天</button>
         <button onClick={() => setDur("custom")} style={{ ...S.toggleBtn, ...(dur === "custom" ? S.toggleActive : {}) }}>多天</button>
       </div>
-      {dur === "0.5" && (
-        <input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)} style={S.input} placeholder="選擇日期" />
-      )}
-      {dur === "1" && (
-        <input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)} style={S.input} placeholder="選擇日期" />
-      )}
-      {dur === "custom" && (
-        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)} style={{ ...S.input, flex:1 }} />
-            <span style={{ color:"#64748b", fontSize:13, whiteSpace:"nowrap" }}>至</span>
-            <input type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)} style={{ ...S.input, flex:1 }} />
-          </div>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <span style={{ fontSize:12, color:"#64748b" }}>共</span>
-            <input type="number" min="1" step="0.5" value={customDays}
-              onChange={e => setCustomDays(e.target.value)} style={{ ...S.input, width:80 }} />
-            <span style={{ fontSize:12, color:"#64748b" }}>天（需手動填入）</span>
-          </div>
-        </div>
-      )}
+      <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+        <input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)}
+          style={{ ...S.input, flex:1, minWidth:130 }} placeholder="開始日期" />
+        {dur === "custom" && <>
+          <span style={{ color:"#64748b", fontSize:13, whiteSpace:"nowrap" }}>共</span>
+          <input type="number" min="2" step="0.5" value={customDays}
+            onChange={e => setCustomDays(e.target.value)}
+            style={{ ...S.input, width:70 }} />
+          <span style={{ color:"#64748b", fontSize:13, whiteSpace:"nowrap" }}>天</span>
+        </>}
+      </div>
     </div>
   );
 
@@ -618,7 +604,6 @@ export default function App() {
                   dur={regDur} setDur={setRegDur}
                   customDays={regCustomDays} setCustomDays={setRegCustomDays}
                   dateStart={regDateStart} setDateStart={setRegDateStart}
-                  dateEnd={regDateEnd} setDateEnd={setRegDateEnd}
                 />
               </div>
               <div style={{ ...S.fg, gridColumn:"1 / -1" }}>
@@ -855,7 +840,6 @@ export default function App() {
                   dur={empDur} setDur={setEmpDur}
                   customDays={empCustomDays} setCustomDays={setEmpCustomDays}
                   dateStart={empDateStart} setDateStart={setEmpDateStart}
-                  dateEnd={empDateEnd} setDateEnd={setEmpDateEnd}
                 />
               </div>
               <div style={S.fg}>
@@ -870,43 +854,20 @@ export default function App() {
 
         {/* ── 申請加班補休 ── */}
         {view === "apply-ot" && <>
-          <h2 style={S.title}>申請加班補休</h2>
+          <h2 style={S.title}>登記加班補休</h2>
           <div style={S.card}>
-            <p style={{ color:"#64748b", fontSize:13, marginBottom:14 }}>申請後由管理員審核，核准後計入補休天數。</p>
+            <div style={S.infoBox}>填入加班日期與天數，系統即時新增補休，不需審核。</div>
             <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:16 }}>
               <label style={S.label}>加班天數 / 日期</label>
               <DurPicker
                 dur={otDur} setDur={setOtDur}
                 customDays={otCustomDays} setCustomDays={setOtCustomDays}
                 dateStart={otDateStart} setDateStart={setOtDateStart}
-                dateEnd={otDateEnd} setDateEnd={setOtDateEnd}
                 showHalf={true}
               />
             </div>
-            <button onClick={doOT} style={S.btnPrimary}>送出申請</button>
+            <button onClick={doOT} style={S.btnPrimary}>確認新增補休</button>
           </div>
-
-          <h3 style={{ fontSize:14, fontWeight:700, color:"#374151", margin:"20px 0 10px" }}>我的申請紀錄</h3>
-          {myOtReqs.length === 0
-            ? <div style={S.empty}>目前沒有申請紀錄</div>
-            : (
-            <div style={S.tableWrap}>
-              <table style={S.table}>
-                <thead><tr>{["日期","天數","狀態"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
-                <tbody>
-                  {myOtReqs.map(r => (
-                    <tr key={r.id} style={S.tr}>
-                      <td style={S.td}>{r.date}</td>
-                      <td style={S.td}>{r.dur === 0.5 ? "半天" : "全天"}</td>
-                      <td style={S.td}><span style={{ ...S.badge, ...statusStyle(r.status) }}>
-                        {r.status === "pending" ? "待審核" : r.status === "approved" ? "已核准" : "已拒絕"}
-                      </span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
         </>}
 
       </main>

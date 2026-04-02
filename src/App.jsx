@@ -118,6 +118,7 @@ export default function App() {
   const [otCustomDays, setOtCustomDays] = useState("");
   const [otDateStart, setOtDateStart] = useState("");
   const [otDateEnd, setOtDateEnd]     = useState("");
+  const [otNote, setOtNote]           = useState("");
 
   // Employee management
   const [newName, setNewName]     = useState("");
@@ -289,11 +290,11 @@ export default function App() {
     await addLeaveRecord({
       empId: emp.id, empName: emp.name,
       type: "補休（加班）", date: dateLabel,
-      duration: `+${durLabel}`, note: "同工自行登記加班", by: emp.name,
+      duration: `+${durLabel}`, note: otNote || "加班", by: emp.name,
     });
     notify(`✅ 已新增補休 ${durLabel}`);
     setSuccessModal({ title: "✅ 加班補休登記成功", body: `已新增 ${durLabel} 補休（${otDateStart}），補休天數已即時更新。` });
-    setOtDateStart(""); setOtCustomDays("2");
+    setOtDateStart(""); setOtCustomDays("2"); setOtNote("");
   };
 
   // ── Admin: approve OT ───────────────────────────────────────────────────
@@ -425,7 +426,7 @@ export default function App() {
         <div style={{ textAlign:"center", marginBottom:24 }}>
           <div style={{ fontSize:46 }}>🌿</div>
           <h1 style={{ fontSize:22, fontWeight:900, color:"#1e293b", margin:"8px 0 4px" }}>假期管理系統</h1>
-          <p style={{ color:"#94a3b8", fontSize:13, margin:0 }}>Leave Management System</p>
+          <p style={{ color:"#e67e22", fontSize:13, margin:0, fontWeight:600 }}>⚠️ 假期須於一年內清假，否則歸零</p>
         </div>
 
         {/* Summary table */}
@@ -615,7 +616,7 @@ export default function App() {
                 </select>
               </div>
               <div style={S.fg}>
-                <label style={S.label}>請假天數 / 日期</label>
+                <label style={S.label}>請假天數 / 請假日期</label>
                 <DurPicker
                   dur={regDur} setDur={setRegDur}
                   customDays={regCustomDays} setCustomDays={setRegCustomDays}
@@ -814,7 +815,7 @@ export default function App() {
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:14, marginBottom:16 }}>
               <div style={S.fg}>
-                <label style={S.label}>請假天數 / 日期</label>
+                <label style={S.label}>請假天數 / 請假日期</label>
                 <DurPicker
                   dur={empDur} setDur={setEmpDur}
                   customDays={empCustomDays} setCustomDays={setEmpCustomDays}
@@ -832,13 +833,18 @@ export default function App() {
           <div style={S.card}>
             <div style={S.infoBox}>填入加班日期與天數，系統即時新增補休，不需審核。</div>
             <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:16 }}>
-              <label style={S.label}>加班天數 / 日期</label>
+              <label style={S.label}>加班天數 / 加班日期</label>
               <DurPicker
                 dur={otDur} setDur={setOtDur}
                 customDays={otCustomDays} setCustomDays={setOtCustomDays}
                 dateStart={otDateStart} setDateStart={setOtDateStart}
                 showHalf={true}
               />
+            </div>
+            <div style={{ ...S.fg, marginBottom:16 }}>
+              <label style={S.label}>事由</label>
+              <input placeholder="加班原因..." value={otNote}
+                onChange={e => setOtNote(e.target.value)} style={S.input} />
             </div>
             <button onClick={doOT} style={S.btnPrimary}>確認新增補休</button>
           </div>

@@ -89,32 +89,32 @@ export default function App() {
   const [adjTarget, setAdjTarget] = useState("");
   const [adjField, setAdjField]   = useState("annualDays");
   const [adjDir, setAdjDir]       = useState("+");
-  const [adjAmt, setAdjAmt]       = useState("1");
+  const [adjAmt, setAdjAmt]   = useState("");
   const [adjNote, setAdjNote]     = useState("");
 
   // Admin – bulk
   const [bulkField, setBulkField] = useState("annualDays");
-  const [bulkAmt, setBulkAmt]     = useState("1");
+  const [bulkAmt, setBulkAmt]   = useState("");
   const [bulkNote, setBulkNote]   = useState("");
 
   // Admin – register leave
   const [regEmp, setRegEmp]         = useState("");
   const [regDur, setRegDur]         = useState("1");       // "0.5" | "1" | "custom"
-  const [regCustomDays, setRegCustomDays] = useState("2"); // used when regDur === "custom"
+  const [regCustomDays, setRegCustomDays] = useState("");  // used when regDur === "custom"
   const [regDateStart, setRegDateStart] = useState("");
   const [regDateEnd, setRegDateEnd]     = useState("");
   const [regNote, setRegNote]       = useState("");
 
   // Employee – apply leave
   const [empDur, setEmpDur]         = useState("1");       // "0.5" | "1" | "custom"
-  const [empCustomDays, setEmpCustomDays] = useState("2");
+  const [empCustomDays, setEmpCustomDays] = useState("");
   const [empDateStart, setEmpDateStart] = useState("");
   const [empDateEnd, setEmpDateEnd]     = useState("");
   const [empNote, setEmpNote]       = useState("");
 
   // Employee – OT
   const [otDur, setOtDur]           = useState("0.5");     // "0.5" | "1" | "custom"
-  const [otCustomDays, setOtCustomDays] = useState("2");
+  const [otCustomDays, setOtCustomDays] = useState("");
   const [otDateStart, setOtDateStart] = useState("");
   const [otDateEnd, setOtDateEnd]     = useState("");
 
@@ -382,7 +382,7 @@ export default function App() {
           style={{ ...S.input, flex:1, minWidth:130 }} placeholder="開始日期" />
         {dur === "custom" && <>
           <span style={{ color:"#64748b", fontSize:13, whiteSpace:"nowrap" }}>共</span>
-          <input type="number" min="2" step="0.5" value={customDays}
+          <input type="number" min="0.5" step="0.5" value={customDays}
             onChange={e => setCustomDays(e.target.value)}
             style={{ ...S.input, width:70 }} />
           <span style={{ color:"#64748b", fontSize:13, whiteSpace:"nowrap" }}>天</span>
@@ -476,13 +476,12 @@ export default function App() {
             ["bulk","➕ 全員加假"],
             ["adjust","✏️ 個人調整"],
             ["leave","📝 登記請假"],
-            ["overtime","⏰ 加班審核"],
             ["records","📋 紀錄"],
             ["employees","👥 員工管理"],
           ].map(([id, label]) => (
             <button key={id} onClick={() => setView(id)}
               style={{ ...S.tab, ...(view === id ? S.tabActive : {}) }}>
-              {label}{id === "overtime" && pendingOt.length > 0 ? ` (${pendingOt.length})` : ""}
+              {label}
             </button>
           ))}
         </div>
@@ -493,12 +492,6 @@ export default function App() {
         {/* ── 總覽 ── */}
         {view === "dashboard" && <>
           <h2 style={S.title}>員工假期總覽</h2>
-          {pendingOt.length > 0 && (
-            <div style={S.alertBox}>
-              ⚠️ 有 <strong>{pendingOt.length}</strong> 筆加班申請待審核
-              <button onClick={() => setView("overtime")} style={S.alertBtn}>前往審核</button>
-            </div>
-          )}
           <div style={S.tableWrap}>
             <table style={S.table}>
               <thead><tr>{["員工","匠假期日","補休","合計可用"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
@@ -528,7 +521,8 @@ export default function App() {
               </div>
               <div style={S.fg}>
                 <label style={S.label}>增加天數</label>
-                <Tog val={bulkAmt} onChange={setBulkAmt} opts={[["0.5","半天"],["1","一天"]]} />
+                <input type="number" min="0.5" step="0.5" placeholder="例如 1、2.5…"
+                  value={bulkAmt} onChange={e => setBulkAmt(e.target.value)} style={S.input} />
               </div>
               <div style={{ ...S.fg, gridColumn:"1 / -1" }}>
                 <label style={S.label}>說明 <span style={S.req}>*</span></label>
@@ -569,7 +563,8 @@ export default function App() {
               </div>
               <div style={S.fg}>
                 <label style={S.label}>天數</label>
-                <Tog val={adjAmt} onChange={setAdjAmt} opts={[["0.5","半天"],["1","一天"]]} />
+                <input type="number" min="0.5" step="0.5" placeholder="例如 0.5、1、3…"
+                  value={adjAmt} onChange={e => setAdjAmt(e.target.value)} style={S.input} />
               </div>
               <div style={{ ...S.fg, gridColumn:"1 / -1" }}>
                 <label style={S.label}>說明 <span style={S.req}>*</span></label>
@@ -621,39 +616,6 @@ export default function App() {
         </>}
 
         {/* ── 加班審核 ── */}
-        {view === "overtime" && <>
-          <h2 style={S.title}>加班補休審核</h2>
-          {otRequests.length === 0
-            ? <div style={S.empty}>目前沒有加班申請</div>
-            : (
-            <div style={S.tableWrap}>
-              <table style={S.table}>
-                <thead><tr>{["員工","日期","天數","狀態","操作"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
-                <tbody>
-                  {otRequests.map(r => (
-                    <tr key={r.id} style={S.tr}>
-                      <td style={S.td}>{r.empName}</td>
-                      <td style={S.td}>{r.date}</td>
-                      <td style={S.td}>{r.dur === 0.5 ? "半天" : "全天"}</td>
-                      <td style={S.td}><span style={{ ...S.badge, ...statusStyle(r.status) }}>
-                        {r.status === "pending" ? "待審核" : r.status === "approved" ? "已核准" : "已拒絕"}
-                      </span></td>
-                      <td style={S.td}>
-                        {r.status === "pending" && (
-                          <div style={{ display:"flex", gap:6 }}>
-                            <button onClick={() => approveOT(r)} style={S.btnSm}>✓ 核准</button>
-                            <button onClick={() => rejectOT(r.id)} style={{ ...S.btnSm, background:"#fef2f2", color:"#dc2626" }}>✗ 拒絕</button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>}
-
         {/* ── 所有紀錄 ── */}
         {view === "records" && <>
           <h2 style={S.title}>所有紀錄</h2>

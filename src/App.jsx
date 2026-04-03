@@ -4,6 +4,7 @@ import {
   saveEmployee, deleteEmployee, updateEmployeeDays,
   addLeaveRecord, deleteLeaveRecord, updateLeaveRecord,
   addOtRequest, updateOtStatus,
+  callAddLeaveToCalendar,
 } from "./firebase.js";
 
 const ADMIN_PASSWORD = "350350";
@@ -207,6 +208,10 @@ export default function App() {
     await addLeaveRecord({ empId: emp.id, empName: emp.name,
       type: "請假（扣除）", date: dl, duration: label,
       note: regNote || "請假", by: "後台管理" });
+    // 寫入 Google 日曆
+    try {
+      await callAddLeaveToCalendar({ empName: emp.name, dateStart: regDateStart, days: dur, note: regNote || "請假" });
+    } catch (e) { console.warn("日曆寫入失敗", e); }
     showSuccess("✅ 請假登記完成", `${emp.name} 請假 ${label}（${regDateStart}）已登記`);
     setRegNote(""); setRegDateStart("");
   };
@@ -254,6 +259,10 @@ export default function App() {
     const dl = empDur === "custom" ? `${empDateStart} 起 ${dur} 天` : empDateStart;
     await addLeaveRecord({ empId: emp.id, empName: emp.name,
       type: "請假", date: dl, duration: getDurLabel(empDur, empCustomDays), note: "請假", by: emp.name });
+    // 寫入 Google 日曆
+    try {
+      await callAddLeaveToCalendar({ empName: emp.name, dateStart: empDateStart, days: dur, note: "請假" });
+    } catch (e) { console.warn("日曆寫入失敗", e); }
     showSuccess("✅ 請假登記成功", `已登記 ${getDurLabel(empDur, empCustomDays)} 請假（${empDateStart}），假期已自動扣除。`);
     setEmpDateStart(""); setEmpDur("1");
   };

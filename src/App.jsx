@@ -9,14 +9,6 @@ import {
 
 const ADMIN_PASSWORD = "350350";
 
-const SEED_EMPLOYEES = [
-  { id: "emp_1", name: "陳小明",  annualDays: 14, compDays: 0 },
-  { id: "emp_2", name: "林雅婷",  annualDays: 12, compDays: 0 },
-  { id: "emp_3", name: "王大偉",  annualDays: 10, compDays: 0 },
-  { id: "emp_4", name: "張美玲",  annualDays: 8,  compDays: 0 },
-  { id: "emp_5", name: "劉建宏",  annualDays: 15, compDays: 0 },
-];
-
 const statusStyle = (s) => ({
   background: s === "pending" ? "#fef9c3" : s === "approved" ? "#f0fdf4" : "#fef2f2",
   color:      s === "pending" ? "#854d0e" : s === "approved" ? "#16a34a" : "#dc2626",
@@ -120,8 +112,7 @@ export default function App() {
     let n = 0;
     const done = () => { n++; if (n >= 3) setLoading(false); };
     const u1 = listenEmployees(data => {
-      if (data.length === 0) SEED_EMPLOYEES.forEach(e => saveEmployee(e));
-      else setEmployees(data);
+      setEmployees(data);
       done();
     });
     const u2 = listenLeaveRecords(data => { setLeaveRecords(data); done(); });

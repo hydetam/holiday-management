@@ -212,7 +212,7 @@ export default function App() {
     try {
       await callAddLeaveToCalendar({ empName: emp.name, dateStart: regDateStart, days: dur, note: regNote || "請假" });
     } catch (e) { console.warn("日曆寫入失敗", e); }
-    showSuccess("✅ 請假登記完成", `${emp.name} 請假 ${label}（${regDateStart}）已登記`);
+    showSuccess("✅ 請假登記完成", `${emp.name} 請假 ${label}（${regDateStart}）已登記，並已加入共用行事曆。`);
     setRegNote(""); setRegDateStart("");
   };
 
@@ -263,7 +263,7 @@ export default function App() {
     try {
       await callAddLeaveToCalendar({ empName: emp.name, dateStart: empDateStart, days: dur, note: "請假" });
     } catch (e) { console.warn("日曆寫入失敗", e); }
-    showSuccess("✅ 請假登記成功", `已登記 ${getDurLabel(empDur, empCustomDays)} 請假（${empDateStart}），假期已自動扣除。`);
+    showSuccess("✅ 請假登記成功", `已登記 ${getDurLabel(empDur, empCustomDays)} 請假（${empDateStart}），假期已自動扣除，並已加入共用行事曆。`);
     setEmpDateStart(""); setEmpDur("1");
   };
 

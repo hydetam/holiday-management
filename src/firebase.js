@@ -13,6 +13,7 @@ import {
   query,
   orderBy,
 } from "firebase/firestore";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBrV2_syU6U9VQEgBnAmCIwK7BtK0mlTh0",
@@ -97,3 +98,7 @@ export function listenOtRequests(cb) {
     cb(snap.docs.map(d => ({ id: d.id, ...d.data() })))
   );
 }
+
+// ── Google Calendar ──────────────────────────────────────────────────────────
+const functions = getFunctions(app, "asia-east1");
+export const callAddLeaveToCalendar = httpsCallable(functions, "addLeaveToCalendar");

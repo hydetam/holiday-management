@@ -97,6 +97,7 @@ export default function App() {
   const [editNote, setEditNote]       = useState("");
   const [editDate, setEditDate]       = useState("");
   const [editDuration, setEditDuration] = useState("");
+  const [editDurVal, setEditDurVal]   = useState("");
 
   // Employee form states
   const [empDur, setEmpDur]             = useState("1");
@@ -197,7 +198,7 @@ export default function App() {
     const dl = regDur === "custom" ? `${regDateStart} 起 ${dur} 天` : regDateStart;
     const label = getDurLabel(regDur, regCustomDays);
     await addLeaveRecord({ empId: emp.id, empName: emp.name,
-      type: "請假（扣除）", date: dl, duration: label,
+      type: "請假（扣除）", date: dl, duration: label, durVal: dur,
       note: regNote || "請假", by: "後台管理" });
     // 寫入 Google 日曆
     try {
@@ -228,14 +229,57 @@ export default function App() {
   };
   const removeEmployee = async (id) => { await deleteEmployee(id); notify("已刪除同工", "error"); };
 
-  const openEditRec = (rec) => { setEditRec(rec); setEditNote(rec.note||""); setEditDate(rec.date||""); setEditDuration(rec.duration||""); };
-  const saveEditRec = async () => {
-    await updateLeaveRecord(editRec.id, { note: editNote, date: editDate, duration: editDuration });
-    notify("紀錄已更新"); setEditRec(null);
+  const isLeaveSyncType = (type) => type.includes("請假") || type === "補休（加班）";
+
+  const openEditRec = (rec) => {
+    setEditRec(rec);
+    setEditNote(rec.note || "");
+    setEditDate(rec.date || "");
+    setEditDuration(rec.duration || "");
+    setEditDurVal(rec.durVal != null ? rec.durVal : "");
   };
+
+  const saveEditRec = async () => {
+    const emp = employees.find(e => e.id === editRec.empId);
+    const newDurVal = parseFloat(editDurVal);
+    const oldDurVal = parseFloat(editRec.durVal) || 0;
+
+    if (emp && isLeaveSyncType(editRec.type) && !isNaN(newDurVal) && newDurVal !== oldDurVal) {
+      const diff = +(newDurVal - oldDurVal).toFixed(1);
+      if (editRec.type.includes("請假")) {
+        if (diff > 0) {
+          const result = calcDeduct(emp, diff);
+          if (!result.ok) { notify("假期不足，無法增加天數", "error"); return; }
+          await updateEmployeeDays(emp.id, result.newAnnual, result.newComp);
+        } else {
+          await updateEmployeeDays(emp.id, +(emp.annualDays + Math.abs(diff)).toFixed(1), emp.compDays);
+        }
+      } else if (editRec.type === "補休（加班）") {
+        await updateEmployeeDays(emp.id, emp.annualDays, Math.max(0, +(emp.compDays + diff).toFixed(1)));
+      }
+    }
+
+    await updateLeaveRecord(editRec.id, {
+      note: editNote, date: editDate, duration: editDuration,
+      ...(isLeaveSyncType(editRec.type) && !isNaN(newDurVal) ? { durVal: newDurVal } : {}),
+    });
+    notify("紀錄已更新" + (emp && isLeaveSyncType(editRec.type) ? "，假期餘額同步調整" : ""));
+    setEditRec(null);
+  };
+
   const deleteRecord = async (rec) => {
-    if (!window.confirm(`確定要刪除「${rec.empName} ${rec.type} ${rec.duration}」？`)) return;
-    await deleteLeaveRecord(rec.id); notify("已刪除紀錄", "error");
+    const willSync = isLeaveSyncType(rec.type) && rec.durVal > 0;
+    if (!window.confirm(`確定要刪除「${rec.empName} ${rec.type} ${rec.duration}」？${willSync ? "\n假期天數將自動還原。" : ""}`)) return;
+    const emp = employees.find(e => e.id === rec.empId);
+    if (emp && willSync) {
+      if (rec.type.includes("請假")) {
+        await updateEmployeeDays(emp.id, +(emp.annualDays + rec.durVal).toFixed(1), emp.compDays);
+      } else if (rec.type === "補休（加班）") {
+        await updateEmployeeDays(emp.id, emp.annualDays, Math.max(0, +(emp.compDays - rec.durVal).toFixed(1)));
+      }
+    }
+    await deleteLeaveRecord(rec.id);
+    notify(willSync ? "已刪除，天數已還原" : "已刪除紀錄", "error");
   };
 
   // ── Employee actions ─────────────────────────────────────────────────────
@@ -249,7 +293,7 @@ export default function App() {
     await updateEmployeeDays(emp.id, result.newAnnual, result.newComp);
     const dl = empDur === "custom" ? `${empDateStart} 起 ${dur} 天` : empDateStart;
     await addLeaveRecord({ empId: emp.id, empName: emp.name,
-      type: "請假", date: dl, duration: getDurLabel(empDur, empCustomDays), note: "請假", by: emp.name });
+      type: "請假", date: dl, duration: getDurLabel(empDur, empCustomDays), durVal: dur, note: "請假", by: emp.name });
     // 寫入 Google 日曆
     try {
       await callAddLeaveToCalendar({ empName: emp.name, dateStart: empDateStart, days: dur, note: "請假" });
@@ -266,7 +310,7 @@ export default function App() {
     await updateEmployeeDays(emp.id, emp.annualDays, +(emp.compDays + dur).toFixed(1));
     const durLabel = getDurLabel(otDur, otCustomDays);
     await addLeaveRecord({ empId: emp.id, empName: emp.name,
-      type: "補休（加班）", date: otDateStart, duration: `+${durLabel}`,
+      type: "補休（加班）", date: otDateStart, duration: `+${durLabel}`, durVal: dur,
       note: otNote || "加班", by: emp.name });
     showSuccess("✅ 加班補休登記成功", `已新增 ${durLabel} 補休，天數即時更新。`);
     setOtDateStart(""); setOtNote(""); setOtDur("1");
@@ -649,20 +693,33 @@ export default function App() {
           {editRec && (
             <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}>
               <div style={{ background:"#fff", borderRadius:16, padding:28, width:"100%", maxWidth:420, boxShadow:"0 20px 60px rgba(0,0,0,0.25)" }}>
-                <h3 style={{ fontSize:16, fontWeight:700, color:"#1e293b", marginBottom:16 }}>編輯紀錄</h3>
+                <h3 style={{ fontSize:16, fontWeight:700, color:"#1e293b", marginBottom:4 }}>編輯紀錄</h3>
+                {isLeaveSyncType(editRec.type) && (
+                  <p style={{ fontSize:12, color:"#0369a1", marginBottom:14 }}>修改天數後，假期餘額會自動更新。</p>
+                )}
                 <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
                   <div style={S.fg}>
                     <label style={S.label}>同工</label>
                     <div style={{ fontSize:13, padding:"9px 11px", background:"#f8fafc", borderRadius:8 }}>{editRec.empName}</div>
                   </div>
                   <div style={S.fg}>
+                    <label style={S.label}>類型</label>
+                    <div style={{ fontSize:13, padding:"9px 11px", background:"#f8fafc", borderRadius:8 }}>{editRec.type}</div>
+                  </div>
+                  <div style={S.fg}>
                     <label style={S.label}>日期</label>
                     <input value={editDate} onChange={e => setEditDate(e.target.value)} style={S.input} />
                   </div>
-                  <div style={S.fg}>
-                    <label style={S.label}>天數</label>
-                    <input value={editDuration} onChange={e => setEditDuration(e.target.value)} style={S.input} />
-                  </div>
+                  {isLeaveSyncType(editRec.type) && (
+                    <div style={S.fg}>
+                      <label style={S.label}>實際天數（會更新餘額）</label>
+                      <input type="number" min="0.5" step="0.5"
+                        value={editDurVal}
+                        onChange={e => setEditDurVal(e.target.value)}
+                        placeholder={editRec.durVal != null ? editRec.durVal : "輸入天數"}
+                        style={S.input} />
+                    </div>
+                  )}
                   <div style={S.fg}>
                     <label style={S.label}>備註</label>
                     <textarea value={editNote} onChange={e => setEditNote(e.target.value)} style={S.textarea} />

@@ -262,9 +262,13 @@ export default function App() {
     if (!otDateStart) { notify("請選擇加班日期", "error"); return; }
     const dur = getDurVal(otDur, otCustomDays);
     if (!dur || dur <= 0) { notify("請輸入有效天數", "error"); return; }
-    await addOtRequest({ empId: currentUser.id, empName: currentUser.name,
-      dur, date: otDateStart, note: otNote || "加班", status: "pending" });
-    showSuccess("✅ 加班補休登記成功", `加班補休申請已送出，待後台審核後計入補休天數。`);
+    const emp = employees.find(e => e.id === currentUser.id);
+    await updateEmployeeDays(emp.id, emp.annualDays, +(emp.compDays + dur).toFixed(1));
+    const durLabel = getDurLabel(otDur, otCustomDays);
+    await addLeaveRecord({ empId: emp.id, empName: emp.name,
+      type: "補休（加班）", date: otDateStart, duration: `+${durLabel}`,
+      note: otNote || "加班", by: emp.name });
+    showSuccess("✅ 加班補休登記成功", `已新增 ${durLabel} 補休，天數即時更新。`);
     setOtDateStart(""); setOtNote(""); setOtDur("1");
   };
 
@@ -474,7 +478,7 @@ export default function App() {
           {detailView === "ot" && (
             <div>
               <div style={S.card}>
-                <div style={S.infoBox}>加班補休須後台審核後才計入天數。</div>
+                <div style={S.infoBox}>填入加班日期與天數，補休即時新增，不需審核。</div>
                 <DateDurPicker
                   dateLabel="加班日期 / 天數"
                   dur={otDur} setDur={setOtDur}
@@ -486,32 +490,9 @@ export default function App() {
                   <input placeholder="加班原因..." value={otNote} onChange={e => setOtNote(e.target.value)} style={S.input} />
                 </div>
                 <div style={{ marginTop:14 }}>
-                  <button onClick={doOT} style={S.btnPrimary}>送出加班補休登記</button>
+                  <button onClick={doOT} style={S.btnPrimary}>確認新增補休</button>
                 </div>
               </div>
-
-              {myOtReqs.length > 0 && (
-                <>
-                  <h3 style={{ fontSize:14, fontWeight:700, color:"#374151", margin:"4px 0 10px" }}>我的加班登記紀錄</h3>
-                  <div style={S.tableWrap}>
-                    <table style={S.table}>
-                      <thead><tr>{["加班日期","天數","事由","狀態"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
-                      <tbody>
-                        {myOtReqs.map(r => (
-                          <tr key={r.id} style={S.tr}>
-                            <td style={S.td}>{r.date}</td>
-                            <td style={S.td}>{r.dur} 天</td>
-                            <td style={S.td}>{r.note || "—"}</td>
-                            <td style={S.td}><span style={{ ...S.badge, ...statusStyle(r.status) }}>
-                              {r.status === "pending" ? "待審核" : r.status === "approved" ? "已核准" : "已拒絕"}
-                            </span></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              )}
             </div>
           )}
         </div>
@@ -533,7 +514,6 @@ export default function App() {
             ["bulk","➕ 全員加假"],
             ["adjust","✏️ 個人調整"],
             ["leave","📝 登記請假"],
-            ["overtime","⏰ 加班審核" + (pendingOt.length > 0 ? ` (${pendingOt.length})` : "")],
             ["records","📋 紀錄"],
             ["employees","👥 同工管理"],
           ].map(([id, label]) => (
@@ -547,12 +527,6 @@ export default function App() {
 
         {view === "dashboard" && <>
           <h2 style={S.title}>同工假期總覽</h2>
-          {pendingOt.length > 0 && (
-            <div style={S.alertBox}>
-              ⚠️ 有 <strong>{pendingOt.length}</strong> 筆加班補休待審核
-              <button onClick={() => setView("overtime")} style={S.alertBtn}>前往審核</button>
-            </div>
-          )}
           <div style={S.tableWrap}>
             <table style={S.table}>
               <thead><tr>{["同工","匠愛假期","補休","合計可用"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
@@ -668,46 +642,6 @@ export default function App() {
               <button onClick={doRegLeave} style={S.btnPrimary}>確認登記</button>
             </div>
           </div>
-        </>}
-
-        {view === "overtime" && <>
-          <h2 style={S.title}>加班補休審核</h2>
-          <div style={{ display:"flex", gap:8, marginBottom:16 }}>
-            {[["pending","待審核"],["approved","已核准"],["rejected","已拒絕"]].map(([v, label]) => (
-              <button key={v} onClick={() => setOtViewFilter(v)}
-                style={{ ...S.toggleBtn, ...(otViewFilter === v ? S.toggleActive : {}), flex:"none", padding:"7px 16px" }}>
-                {label} ({otRequests.filter(r => r.status === v).length})
-              </button>
-            ))}
-          </div>
-          {otRequests.filter(r => r.status === otViewFilter).length === 0
-            ? <div style={S.empty}>沒有紀錄</div>
-            : (
-            <div style={S.tableWrap}>
-              <table style={S.table}>
-                <thead><tr>{["同工","加班日期","天數","事由","狀態","操作"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
-                <tbody>
-                  {otRequests.filter(r => r.status === otViewFilter).map(r => (
-                    <tr key={r.id} style={S.tr}>
-                      <td style={S.td}>{r.empName}</td>
-                      <td style={S.td}>{r.date}</td>
-                      <td style={S.td}>{r.dur} 天</td>
-                      <td style={S.td}>{r.note || "—"}</td>
-                      <td style={S.td}><span style={{ ...S.badge, ...statusStyle(r.status) }}>
-                        {r.status === "pending" ? "待審核" : r.status === "approved" ? "已核准" : "已拒絕"}
-                      </span></td>
-                      <td style={S.td}>{r.status === "pending" && (
-                        <div style={{ display:"flex", gap:6 }}>
-                          <button onClick={() => approveOT(r)} style={S.btnSm}>✓ 核准</button>
-                          <button onClick={() => rejectOT(r.id)} style={{ ...S.btnSm, background:"#fef2f2", color:"#dc2626" }}>✗ 拒絕</button>
-                        </div>
-                      )}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
         </>}
 
         {view === "records" && <>

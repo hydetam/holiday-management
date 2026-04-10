@@ -97,7 +97,6 @@ export default function App() {
   const [editNote, setEditNote]       = useState("");
   const [editDate, setEditDate]       = useState("");
   const [editDuration, setEditDuration] = useState("");
-  const [editDurVal, setEditDurVal]   = useState("");
 
   // Employee form states
   const [empDur, setEmpDur]             = useState("1");
@@ -198,7 +197,7 @@ export default function App() {
     const dl = regDur === "custom" ? `${regDateStart} 起 ${dur} 天` : regDateStart;
     const label = getDurLabel(regDur, regCustomDays);
     await addLeaveRecord({ empId: emp.id, empName: emp.name,
-      type: "請假（扣除）", date: dl, duration: label, durVal: dur,
+      type: "請假（扣除）", date: dl, duration: label,
       note: regNote || "請假", by: "後台管理" });
     // 寫入 Google 日曆
     try {
@@ -229,57 +228,14 @@ export default function App() {
   };
   const removeEmployee = async (id) => { await deleteEmployee(id); notify("已刪除同工", "error"); };
 
-  const isLeaveSyncType = (type) => type.includes("請假") || type === "補休（加班）";
-
-  const openEditRec = (rec) => {
-    setEditRec(rec);
-    setEditNote(rec.note || "");
-    setEditDate(rec.date || "");
-    setEditDuration(rec.duration || "");
-    setEditDurVal(rec.durVal != null ? rec.durVal : "");
-  };
-
+  const openEditRec = (rec) => { setEditRec(rec); setEditNote(rec.note||""); setEditDate(rec.date||""); setEditDuration(rec.duration||""); };
   const saveEditRec = async () => {
-    const emp = employees.find(e => e.id === editRec.empId);
-    const newDurVal = parseFloat(editDurVal);
-    const oldDurVal = parseFloat(editRec.durVal) || 0;
-
-    if (emp && isLeaveSyncType(editRec.type) && !isNaN(newDurVal) && newDurVal !== oldDurVal) {
-      const diff = +(newDurVal - oldDurVal).toFixed(1);
-      if (editRec.type.includes("請假")) {
-        if (diff > 0) {
-          const result = calcDeduct(emp, diff);
-          if (!result.ok) { notify("假期不足，無法增加天數", "error"); return; }
-          await updateEmployeeDays(emp.id, result.newAnnual, result.newComp);
-        } else {
-          await updateEmployeeDays(emp.id, +(emp.annualDays + Math.abs(diff)).toFixed(1), emp.compDays);
-        }
-      } else if (editRec.type === "補休（加班）") {
-        await updateEmployeeDays(emp.id, emp.annualDays, Math.max(0, +(emp.compDays + diff).toFixed(1)));
-      }
-    }
-
-    await updateLeaveRecord(editRec.id, {
-      note: editNote, date: editDate, duration: editDuration,
-      ...(isLeaveSyncType(editRec.type) && !isNaN(newDurVal) ? { durVal: newDurVal } : {}),
-    });
-    notify("紀錄已更新" + (emp && isLeaveSyncType(editRec.type) ? "，假期餘額同步調整" : ""));
-    setEditRec(null);
+    await updateLeaveRecord(editRec.id, { note: editNote, date: editDate, duration: editDuration });
+    notify("紀錄已更新"); setEditRec(null);
   };
-
   const deleteRecord = async (rec) => {
-    const willSync = isLeaveSyncType(rec.type) && rec.durVal > 0;
-    if (!window.confirm(`確定要刪除「${rec.empName} ${rec.type} ${rec.duration}」？${willSync ? "\n假期天數將自動還原。" : ""}`)) return;
-    const emp = employees.find(e => e.id === rec.empId);
-    if (emp && willSync) {
-      if (rec.type.includes("請假")) {
-        await updateEmployeeDays(emp.id, +(emp.annualDays + rec.durVal).toFixed(1), emp.compDays);
-      } else if (rec.type === "補休（加班）") {
-        await updateEmployeeDays(emp.id, emp.annualDays, Math.max(0, +(emp.compDays - rec.durVal).toFixed(1)));
-      }
-    }
-    await deleteLeaveRecord(rec.id);
-    notify(willSync ? "已刪除，天數已還原" : "已刪除紀錄", "error");
+    if (!window.confirm(`確定要刪除「${rec.empName} ${rec.type} ${rec.duration}」？`)) return;
+    await deleteLeaveRecord(rec.id); notify("已刪除紀錄", "error");
   };
 
   // ── Employee actions ─────────────────────────────────────────────────────
@@ -293,7 +249,7 @@ export default function App() {
     await updateEmployeeDays(emp.id, result.newAnnual, result.newComp);
     const dl = empDur === "custom" ? `${empDateStart} 起 ${dur} 天` : empDateStart;
     await addLeaveRecord({ empId: emp.id, empName: emp.name,
-      type: "請假", date: dl, duration: getDurLabel(empDur, empCustomDays), durVal: dur, note: "請假", by: emp.name });
+      type: "請假", date: dl, duration: getDurLabel(empDur, empCustomDays), note: "請假", by: emp.name });
     // 寫入 Google 日曆
     try {
       await callAddLeaveToCalendar({ empName: emp.name, dateStart: empDateStart, days: dur, note: "請假" });
@@ -306,13 +262,9 @@ export default function App() {
     if (!otDateStart) { notify("請選擇加班日期", "error"); return; }
     const dur = getDurVal(otDur, otCustomDays);
     if (!dur || dur <= 0) { notify("請輸入有效天數", "error"); return; }
-    const emp = employees.find(e => e.id === currentUser.id);
-    await updateEmployeeDays(emp.id, emp.annualDays, +(emp.compDays + dur).toFixed(1));
-    const durLabel = getDurLabel(otDur, otCustomDays);
-    await addLeaveRecord({ empId: emp.id, empName: emp.name,
-      type: "補休（加班）", date: otDateStart, duration: `+${durLabel}`, durVal: dur,
-      note: otNote || "加班", by: emp.name });
-    showSuccess("✅ 加班補休登記成功", `已新增 ${durLabel} 補休，天數即時更新。`);
+    await addOtRequest({ empId: currentUser.id, empName: currentUser.name,
+      dur, date: otDateStart, note: otNote || "加班", status: "pending" });
+    showSuccess("✅ 加班補休登記成功", `加班補休申請已送出，待後台審核後計入補休天數。`);
     setOtDateStart(""); setOtNote(""); setOtDur("1");
   };
 
@@ -333,7 +285,7 @@ export default function App() {
   );
 
   // Date on top, then duration toggle below
-  const DateDurPicker = ({ dateLabel, dur, setDur, customDays, setCustomDays, dateStart, setDateStart }) => (
+  const DateDurPicker = ({ dateLabel, dur, setDur, customDays, setCustomDays, dateStart, setDateStart, minCustom = "0.5" }) => (
     <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
       <div style={S.fg}>
         <label style={S.label}>{dateLabel}</label>
@@ -344,7 +296,7 @@ export default function App() {
         <Tog val={dur} onChange={setDur} opts={[["0.5","半天"],["1","全天"],["custom","多天"]]} />
         {dur === "custom" && (
           <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:6 }}>
-            <input type="number" min="0.5" step="0.5" value={customDays}
+            <input type="number" min={minCustom} step="0.5" value={customDays}
               onChange={e => setCustomDays(e.target.value)}
               style={{ ...S.input, width:80 }} placeholder="天數" />
             <span style={{ color:"#64748b", fontSize:13 }}>天</span>
@@ -484,14 +436,13 @@ export default function App() {
             myRecs.length === 0 ? <div style={S.empty}>目前沒有紀錄</div> : (
               <div style={S.tableWrap}>
                 <table style={S.table}>
-                  <thead><tr>{["類型","日期","天數","備註"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                  <thead><tr>{["類型","日期","天數"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
                   <tbody>
                     {myRecs.map(r => (
                       <tr key={r.id} style={S.tr}>
                         <td style={S.td}><span style={r.type.includes("補休") ? S.tagComp : S.tagAnnual}>{r.type}</span></td>
                         <td style={S.td}>{r.date || "—"}</td>
                         <td style={S.td}>{r.duration}</td>
-                        <td style={S.td}>{r.note}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -511,6 +462,7 @@ export default function App() {
                 dur={empDur} setDur={setEmpDur}
                 customDays={empCustomDays} setCustomDays={setEmpCustomDays}
                 dateStart={empDateStart} setDateStart={setEmpDateStart}
+                minCustom="1.5"
               />
               <div style={{ marginTop:16 }}>
                 <button onClick={doEmpLeave} style={S.btnPrimary}>確認登記請假</button>
@@ -522,7 +474,7 @@ export default function App() {
           {detailView === "ot" && (
             <div>
               <div style={S.card}>
-                <div style={S.infoBox}>填入加班日期與天數，補休即時新增，不需審核。</div>
+                <div style={S.infoBox}>加班補休須後台審核後才計入天數。</div>
                 <DateDurPicker
                   dateLabel="加班日期 / 天數"
                   dur={otDur} setDur={setOtDur}
@@ -534,9 +486,32 @@ export default function App() {
                   <input placeholder="加班原因..." value={otNote} onChange={e => setOtNote(e.target.value)} style={S.input} />
                 </div>
                 <div style={{ marginTop:14 }}>
-                  <button onClick={doOT} style={S.btnPrimary}>確認新增補休</button>
+                  <button onClick={doOT} style={S.btnPrimary}>送出加班補休登記</button>
                 </div>
               </div>
+
+              {myOtReqs.length > 0 && (
+                <>
+                  <h3 style={{ fontSize:14, fontWeight:700, color:"#374151", margin:"4px 0 10px" }}>我的加班登記紀錄</h3>
+                  <div style={S.tableWrap}>
+                    <table style={S.table}>
+                      <thead><tr>{["加班日期","天數","事由","狀態"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                      <tbody>
+                        {myOtReqs.map(r => (
+                          <tr key={r.id} style={S.tr}>
+                            <td style={S.td}>{r.date}</td>
+                            <td style={S.td}>{r.dur} 天</td>
+                            <td style={S.td}>{r.note || "—"}</td>
+                            <td style={S.td}><span style={{ ...S.badge, ...statusStyle(r.status) }}>
+                              {r.status === "pending" ? "待審核" : r.status === "approved" ? "已核准" : "已拒絕"}
+                            </span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -558,6 +533,7 @@ export default function App() {
             ["bulk","➕ 全員加假"],
             ["adjust","✏️ 個人調整"],
             ["leave","📝 登記請假"],
+            ["overtime","⏰ 加班審核" + (pendingOt.length > 0 ? ` (${pendingOt.length})` : "")],
             ["records","📋 紀錄"],
             ["employees","👥 同工管理"],
           ].map(([id, label]) => (
@@ -571,6 +547,12 @@ export default function App() {
 
         {view === "dashboard" && <>
           <h2 style={S.title}>同工假期總覽</h2>
+          {pendingOt.length > 0 && (
+            <div style={S.alertBox}>
+              ⚠️ 有 <strong>{pendingOt.length}</strong> 筆加班補休待審核
+              <button onClick={() => setView("overtime")} style={S.alertBtn}>前往審核</button>
+            </div>
+          )}
           <div style={S.tableWrap}>
             <table style={S.table}>
               <thead><tr>{["同工","匠愛假期","補休","合計可用"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
@@ -688,38 +670,65 @@ export default function App() {
           </div>
         </>}
 
+        {view === "overtime" && <>
+          <h2 style={S.title}>加班補休審核</h2>
+          <div style={{ display:"flex", gap:8, marginBottom:16 }}>
+            {[["pending","待審核"],["approved","已核准"],["rejected","已拒絕"]].map(([v, label]) => (
+              <button key={v} onClick={() => setOtViewFilter(v)}
+                style={{ ...S.toggleBtn, ...(otViewFilter === v ? S.toggleActive : {}), flex:"none", padding:"7px 16px" }}>
+                {label} ({otRequests.filter(r => r.status === v).length})
+              </button>
+            ))}
+          </div>
+          {otRequests.filter(r => r.status === otViewFilter).length === 0
+            ? <div style={S.empty}>沒有紀錄</div>
+            : (
+            <div style={S.tableWrap}>
+              <table style={S.table}>
+                <thead><tr>{["同工","加班日期","天數","事由","狀態","操作"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {otRequests.filter(r => r.status === otViewFilter).map(r => (
+                    <tr key={r.id} style={S.tr}>
+                      <td style={S.td}>{r.empName}</td>
+                      <td style={S.td}>{r.date}</td>
+                      <td style={S.td}>{r.dur} 天</td>
+                      <td style={S.td}>{r.note || "—"}</td>
+                      <td style={S.td}><span style={{ ...S.badge, ...statusStyle(r.status) }}>
+                        {r.status === "pending" ? "待審核" : r.status === "approved" ? "已核准" : "已拒絕"}
+                      </span></td>
+                      <td style={S.td}>{r.status === "pending" && (
+                        <div style={{ display:"flex", gap:6 }}>
+                          <button onClick={() => approveOT(r)} style={S.btnSm}>✓ 核准</button>
+                          <button onClick={() => rejectOT(r.id)} style={{ ...S.btnSm, background:"#fef2f2", color:"#dc2626" }}>✗ 拒絕</button>
+                        </div>
+                      )}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>}
+
         {view === "records" && <>
           <h2 style={S.title}>所有紀錄</h2>
           {editRec && (
             <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}>
               <div style={{ background:"#fff", borderRadius:16, padding:28, width:"100%", maxWidth:420, boxShadow:"0 20px 60px rgba(0,0,0,0.25)" }}>
-                <h3 style={{ fontSize:16, fontWeight:700, color:"#1e293b", marginBottom:4 }}>編輯紀錄</h3>
-                {isLeaveSyncType(editRec.type) && (
-                  <p style={{ fontSize:12, color:"#0369a1", marginBottom:14 }}>修改天數後，假期餘額會自動更新。</p>
-                )}
+                <h3 style={{ fontSize:16, fontWeight:700, color:"#1e293b", marginBottom:16 }}>編輯紀錄</h3>
                 <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
                   <div style={S.fg}>
                     <label style={S.label}>同工</label>
                     <div style={{ fontSize:13, padding:"9px 11px", background:"#f8fafc", borderRadius:8 }}>{editRec.empName}</div>
                   </div>
                   <div style={S.fg}>
-                    <label style={S.label}>類型</label>
-                    <div style={{ fontSize:13, padding:"9px 11px", background:"#f8fafc", borderRadius:8 }}>{editRec.type}</div>
-                  </div>
-                  <div style={S.fg}>
                     <label style={S.label}>日期</label>
                     <input value={editDate} onChange={e => setEditDate(e.target.value)} style={S.input} />
                   </div>
-                  {isLeaveSyncType(editRec.type) && (
-                    <div style={S.fg}>
-                      <label style={S.label}>實際天數（會更新餘額）</label>
-                      <input type="number" min="0.5" step="0.5"
-                        value={editDurVal}
-                        onChange={e => setEditDurVal(e.target.value)}
-                        placeholder={editRec.durVal != null ? editRec.durVal : "輸入天數"}
-                        style={S.input} />
-                    </div>
-                  )}
+                  <div style={S.fg}>
+                    <label style={S.label}>天數</label>
+                    <input value={editDuration} onChange={e => setEditDuration(e.target.value)} style={S.input} />
+                  </div>
                   <div style={S.fg}>
                     <label style={S.label}>備註</label>
                     <textarea value={editNote} onChange={e => setEditNote(e.target.value)} style={S.textarea} />

@@ -309,9 +309,12 @@ export default function App() {
     if (!otDateStart) { notify("請選擇加班日期", "error"); return; }
     const dur = getDurVal(otDur);
     if (!dur || dur <= 0) { notify("請輸入有效天數", "error"); return; }
-    await addOtRequest({ empId: currentUser.id, empName: currentUser.name,
-      dur, date: otDateStart, note: otNote || "加班", status: "pending" });
-    showSuccess("✅ 加班補休登記成功", `加班補休申請已送出，待後台審核後計入補休天數。`);
+    const emp = employees.find(e => e.id === currentUser.id);
+    await updateEmployeeDays(emp.id, emp.annualDays, +(emp.compDays + dur).toFixed(1));
+    await addLeaveRecord({ empId: emp.id, empName: emp.name,
+      type: "補休（加班）", date: otDateStart,
+      duration: `+${dur}天`, note: otNote || "加班", by: emp.name });
+    showSuccess("✅ 加班補休登記成功", `已新增 ${dur} 天補休（${otDateStart}），天數即時更新。`);
     setOtDateStart(""); setOtNote(""); setOtDur("1");
   };
 
@@ -332,6 +335,26 @@ export default function App() {
   );
 
   // Date on top, then duration toggle below
+  const NumInput = ({ value, onChange, min = 0.5 }) => (
+    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+      <input
+        type="number" min={min} step="0.5" value={value}
+        onChange={e => {
+          const v = e.target.value;
+          if (v === "" || /^\d*\.?\d*$/.test(v)) onChange(v);
+        }}
+        onBlur={e => {
+          const v = +e.target.value;
+          if (!v || v < min) onChange(String(min));
+          else onChange(String(Math.round(v * 2) / 2)); // snap to 0.5
+        }}
+        style={{ ...S.input, width:90, textAlign:"center" }}
+        placeholder={String(min)}
+      />
+      <span style={{ color:"#64748b", fontSize:13 }}>天</span>
+    </div>
+  );
+
   const DateDurPicker = ({ dateLabel, dur, setDur, dateStart, setDateStart, minCustom = "0.5" }) => (
     <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
       <div style={S.fg}>
@@ -340,12 +363,7 @@ export default function App() {
       </div>
       <div style={S.fg}>
         <label style={S.label}>天數</label>
-        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <input type="number" min={minCustom} step="0.5" value={dur}
-            onChange={e => setDur(e.target.value)}
-            style={{ ...S.input, width:90 }} placeholder="例如 0.5、1、3" />
-          <span style={{ color:"#64748b", fontSize:13 }}>天</span>
-        </div>
+        <NumInput value={dur} onChange={setDur} min={+minCustom} />
       </div>
     </div>
   );
@@ -517,18 +535,23 @@ export default function App() {
           {detailView === "ot" && (
             <div>
               <div style={S.card}>
-                <div style={S.infoBox}>加班補休須後台審核後才計入天數。</div>
-                <DateDurPicker
-                  dateLabel="加班日期 / 天數"
-                  dur={otDur} setDur={setOtDur}
-                  dateStart={otDateStart} setDateStart={setOtDateStart}
-                />
-                <div style={{ ...S.fg, marginTop:12 }}>
-                  <label style={S.label}>事由</label>
-                  <input placeholder="加班原因..." value={otNote} onChange={e => setOtNote(e.target.value)} style={S.input} />
+                <div style={S.infoBox}>登記加班後，補休天數即時更新。</div>
+                <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+                  <div style={S.fg}>
+                    <label style={S.label}>加班日期</label>
+                    <input type="date" value={otDateStart} onChange={e => setOtDateStart(e.target.value)} style={S.input} />
+                  </div>
+                  <div style={S.fg}>
+                    <label style={S.label}>天數</label>
+                    <NumInput value={otDur} onChange={setOtDur} min={0.5} />
+                  </div>
+                  <div style={S.fg}>
+                    <label style={S.label}>事由</label>
+                    <input placeholder="加班原因..." value={otNote} onChange={e => setOtNote(e.target.value)} style={S.input} />
+                  </div>
                 </div>
-                <div style={{ marginTop:14 }}>
-                  <button onClick={doOT} style={S.btnPrimary}>送出加班補休登記</button>
+                <div style={{ marginTop:16 }}>
+                  <button onClick={doOT} style={S.btnPrimary}>確認登記加班補休</button>
                 </div>
               </div>
 
@@ -537,16 +560,13 @@ export default function App() {
                   <h3 style={{ fontSize:14, fontWeight:700, color:"#374151", margin:"4px 0 10px" }}>我的加班登記紀錄</h3>
                   <div style={S.tableWrap}>
                     <table style={S.table}>
-                      <thead><tr>{["加班日期","天數","事由","狀態"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                      <thead><tr>{["加班日期","天數","事由"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
                       <tbody>
                         {myOtReqs.map(r => (
                           <tr key={r.id} style={S.tr}>
                             <td style={S.td}>{r.date}</td>
                             <td style={S.td}>{r.dur} 天</td>
                             <td style={S.td}>{r.note || "—"}</td>
-                            <td style={S.td}><span style={{ ...S.badge, ...statusStyle(r.status) }}>
-                              {r.status === "pending" ? "待審核" : r.status === "approved" ? "已核准" : "已拒絕"}
-                            </span></td>
                           </tr>
                         ))}
                       </tbody>

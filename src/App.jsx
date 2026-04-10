@@ -229,13 +229,60 @@ export default function App() {
   const removeEmployee = async (id) => { await deleteEmployee(id); notify("已刪除同工", "error"); };
 
   const openEditRec = (rec) => { setEditRec(rec); setEditNote(rec.note||""); setEditDate(rec.date||""); setEditDuration(rec.duration||""); };
-  const saveEditRec = async () => {
-    await updateLeaveRecord(editRec.id, { note: editNote, date: editDate, duration: editDuration });
-    notify("紀錄已更新"); setEditRec(null);
+
+  // 從 duration 字串解析天數，例如 "全天"→1, "半天"→0.5, "+2天"→2, "2 天"→2
+  const parseDays = (durStr) => {
+    if (!durStr) return 0;
+    if (durStr === "全天") return 1;
+    if (durStr === "半天") return 0.5;
+    const match = durStr.replace(/[+\s天]/g, "").match(/[\d.]+/);
+    return match ? +match[0] : 0;
   };
+
+  const saveEditRec = async () => {
+    const oldDays = parseDays(editRec.duration);
+    const newDays = parseDays(editDuration);
+    const diff = +(newDays - oldDays).toFixed(1);
+
+    if (diff !== 0) {
+      const emp = employees.find(e => e.id === editRec.empId);
+      if (emp) {
+        const isComp = editRec.type.includes("補休");
+        const isPlus = editRec.duration.startsWith("+");
+        if (isComp) {
+          const newComp = Math.max(0, +(emp.compDays + (isPlus ? diff : -diff)).toFixed(1));
+          await updateEmployeeDays(emp.id, emp.annualDays, newComp);
+        } else {
+          const newAnnual = Math.max(0, +(emp.annualDays + (isPlus ? diff : -diff)).toFixed(1));
+          await updateEmployeeDays(emp.id, newAnnual, emp.compDays);
+        }
+      }
+    }
+    await updateLeaveRecord(editRec.id, { note: editNote, date: editDate, duration: editDuration });
+    notify("紀錄已更新，天數已同步"); setEditRec(null);
+  };
+
   const deleteRecord = async (rec) => {
     if (!window.confirm(`確定要刪除「${rec.empName} ${rec.type} ${rec.duration}」？`)) return;
-    await deleteLeaveRecord(rec.id); notify("已刪除紀錄", "error");
+    const emp = employees.find(e => e.id === rec.empId);
+    if (emp) {
+      const days = parseDays(rec.duration);
+      const isComp = rec.type.includes("補休");
+      const isPlus = rec.duration.startsWith("+");
+      if (isComp) {
+        const newComp = isPlus
+          ? Math.max(0, +(emp.compDays - days).toFixed(1))
+          : +(emp.compDays + days).toFixed(1);
+        await updateEmployeeDays(emp.id, emp.annualDays, newComp);
+      } else {
+        const newAnnual = isPlus
+          ? Math.max(0, +(emp.annualDays - days).toFixed(1))
+          : +(emp.annualDays + days).toFixed(1);
+        await updateEmployeeDays(emp.id, newAnnual, emp.compDays);
+      }
+    }
+    await deleteLeaveRecord(rec.id);
+    notify("已刪除紀錄，天數已更新", "error");
   };
 
   // ── Employee actions ─────────────────────────────────────────────────────

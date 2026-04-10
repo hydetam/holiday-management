@@ -148,8 +148,8 @@ export default function App() {
     return { ok: true, newAnnual: na, newComp: nc };
   };
 
-  const getDurVal   = (dur, custom) => dur === "custom" ? +custom : +dur;
-  const getDurLabel = (dur, custom) => dur === "0.5" ? "半天" : dur === "1" ? "全天" : `${custom} 天`;
+  const getDurVal   = (dur) => +dur;
+  const getDurLabel = (dur) => dur === "0.5" ? "半天" : dur === "1" ? "全天" : `${dur} 天`;
 
   // ── Admin actions ────────────────────────────────────────────────────────
   const doAdjust = async () => {
@@ -189,13 +189,13 @@ export default function App() {
     const emp = employees.find(e => e.id === regEmp);
     if (!emp) { notify("請選擇同工", "error"); return; }
     if (!regDateStart) { notify("請選擇請假日期", "error"); return; }
-    const dur = getDurVal(regDur, regCustomDays);
+    const dur = getDurVal(regDur);
     if (!dur || dur <= 0) { notify("請輸入有效天數", "error"); return; }
     const result = calcDeduct(emp, dur);
     if (!result.ok) { notify(`${emp.name} 假期不足！`, "error"); return; }
     await updateEmployeeDays(emp.id, result.newAnnual, result.newComp);
-    const dl = regDur === "custom" ? `${regDateStart} 起 ${dur} 天` : regDateStart;
-    const label = getDurLabel(regDur, regCustomDays);
+    const dl = +regDur > 1 ? `${regDateStart} 起 ${dur} 天` : regDateStart;
+    const label = getDurLabel(regDur);
     await addLeaveRecord({ empId: emp.id, empName: emp.name,
       type: "請假（扣除）", date: dl, duration: label,
       note: regNote || "請假", by: "後台管理" });
@@ -242,25 +242,25 @@ export default function App() {
   const doEmpLeave = async () => {
     const emp = employees.find(e => e.id === currentUser.id);
     if (!empDateStart) { notify("請選擇請假日期", "error"); return; }
-    const dur = getDurVal(empDur, empCustomDays);
+    const dur = getDurVal(empDur);
     if (!dur || dur <= 0) { notify("請輸入有效天數", "error"); return; }
     const result = calcDeduct(emp, dur);
     if (!result.ok) { notify("假期不足！", "error"); return; }
     await updateEmployeeDays(emp.id, result.newAnnual, result.newComp);
-    const dl = empDur === "custom" ? `${empDateStart} 起 ${dur} 天` : empDateStart;
+    const dl = +empDur > 1 ? `${empDateStart} 起 ${dur} 天` : empDateStart;
     await addLeaveRecord({ empId: emp.id, empName: emp.name,
-      type: "請假", date: dl, duration: getDurLabel(empDur, empCustomDays), note: "請假", by: emp.name });
+      type: "請假", date: dl, duration: getDurLabel(empDur), note: "請假", by: emp.name });
     // 寫入 Google 日曆
     try {
       await callAddLeaveToCalendar({ empName: emp.name, dateStart: empDateStart, days: dur, note: "請假" });
     } catch (e) { console.warn("日曆寫入失敗", e); }
-    showSuccess("✅ 請假登記成功", `已登記 ${getDurLabel(empDur, empCustomDays)} 請假（${empDateStart}），假期已自動扣除，並已加入共用行事曆。`);
+    showSuccess("✅ 請假登記成功", `已登記 ${getDurLabel(empDur)} 請假（${empDateStart}），假期已自動扣除，並已加入共用行事曆。`);
     setEmpDateStart(""); setEmpDur("1");
   };
 
   const doOT = async () => {
     if (!otDateStart) { notify("請選擇加班日期", "error"); return; }
-    const dur = getDurVal(otDur, otCustomDays);
+    const dur = getDurVal(otDur);
     if (!dur || dur <= 0) { notify("請輸入有效天數", "error"); return; }
     await addOtRequest({ empId: currentUser.id, empName: currentUser.name,
       dur, date: otDateStart, note: otNote || "加班", status: "pending" });
@@ -285,7 +285,7 @@ export default function App() {
   );
 
   // Date on top, then duration toggle below
-  const DateDurPicker = ({ dateLabel, dur, setDur, customDays, setCustomDays, dateStart, setDateStart, minCustom = "0.5" }) => (
+  const DateDurPicker = ({ dateLabel, dur, setDur, dateStart, setDateStart, minCustom = "0.5" }) => (
     <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
       <div style={S.fg}>
         <label style={S.label}>{dateLabel}</label>
@@ -293,15 +293,12 @@ export default function App() {
       </div>
       <div style={S.fg}>
         <label style={S.label}>天數</label>
-        <Tog val={dur} onChange={setDur} opts={[["0.5","半天"],["1","全天"],["custom","多天"]]} />
-        {dur === "custom" && (
-          <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:6 }}>
-            <input type="number" min={minCustom} step="0.5" value={customDays}
-              onChange={e => setCustomDays(e.target.value)}
-              style={{ ...S.input, width:80 }} placeholder="天數" />
-            <span style={{ color:"#64748b", fontSize:13 }}>天</span>
-          </div>
-        )}
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <input type="number" min={minCustom} step="0.5" value={dur}
+            onChange={e => setDur(e.target.value)}
+            style={{ ...S.input, width:90 }} placeholder="例如 0.5、1、3" />
+          <span style={{ color:"#64748b", fontSize:13 }}>天</span>
+        </div>
       </div>
     </div>
   );
@@ -460,9 +457,8 @@ export default function App() {
               <DateDurPicker
                 dateLabel="請假日期 / 天數"
                 dur={empDur} setDur={setEmpDur}
-                customDays={empCustomDays} setCustomDays={setEmpCustomDays}
                 dateStart={empDateStart} setDateStart={setEmpDateStart}
-                minCustom="1.5"
+                minCustom="0.5"
               />
               <div style={{ marginTop:16 }}>
                 <button onClick={doEmpLeave} style={S.btnPrimary}>確認登記請假</button>
@@ -478,7 +474,6 @@ export default function App() {
                 <DateDurPicker
                   dateLabel="加班日期 / 天數"
                   dur={otDur} setDur={setOtDur}
-                  customDays={otCustomDays} setCustomDays={setOtCustomDays}
                   dateStart={otDateStart} setDateStart={setOtDateStart}
                 />
                 <div style={{ ...S.fg, marginTop:12 }}>
@@ -652,7 +647,6 @@ export default function App() {
             <DateDurPicker
               dateLabel="請假日期 / 天數"
               dur={regDur} setDur={setRegDur}
-              customDays={regCustomDays} setCustomDays={setRegCustomDays}
               dateStart={regDateStart} setDateStart={setRegDateStart}
             />
             <div style={{ ...S.fg, marginTop:14 }}>

@@ -498,13 +498,14 @@ export default function App() {
             myRecs.length === 0 ? <div style={S.empty}>目前沒有紀錄</div> : (
               <div style={S.tableWrap}>
                 <table style={S.table}>
-                  <thead><tr>{["類型","日期","天數"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                  <thead><tr>{["類型","日期","天數","事由"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
                   <tbody>
                     {myRecs.map(r => (
                       <tr key={r.id} style={S.tr}>
                         <td style={S.td}><span style={r.type.includes("補休") ? S.tagComp : S.tagAnnual}>{r.type}</span></td>
                         <td style={S.td}>{r.date || "—"}</td>
                         <td style={S.td}>{r.duration}</td>
+                        <td style={S.td}>{r.type.includes("補休") ? (r.note || "—") : "請假"}</td>
                       </tr>
                     ))}
                   </tbody>

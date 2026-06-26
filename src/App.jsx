@@ -505,7 +505,7 @@ export default function App() {
                         <td style={S.td}><span style={r.type.includes("補休") ? S.tagComp : S.tagAnnual}>{r.type}</span></td>
                         <td style={S.td}>{r.date || "—"}</td>
                         <td style={S.td}>{r.duration}</td>
-                        <td style={S.td}>{r.type.includes("補休") ? (r.note || "—") : "請假"}</td>
+                        <td style={S.td}>{r.note || "請假"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -596,7 +596,6 @@ export default function App() {
             ["bulk","➕ 全員加假"],
             ["adjust","✏️ 個人調整"],
             ["leave","📝 登記請假"],
-            ["overtime","⏰ 加班審核" + (pendingOt.length > 0 ? ` (${pendingOt.length})` : "")],
             ["records","📋 紀錄"],
             ["employees","👥 同工管理"],
           ].map(([id, label]) => (
@@ -610,12 +609,6 @@ export default function App() {
 
         {view === "dashboard" && <>
           <h2 style={S.title}>同工假期總覽</h2>
-          {pendingOt.length > 0 && (
-            <div style={S.alertBox}>
-              ⚠️ 有 <strong>{pendingOt.length}</strong> 筆加班補休待審核
-              <button onClick={() => setView("overtime")} style={S.alertBtn}>前往審核</button>
-            </div>
-          )}
           <div style={S.tableWrap}>
             <table style={S.table}>
               <thead><tr>{["同工","匠愛假期","補休","合計可用"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
@@ -730,46 +723,6 @@ export default function App() {
               <button onClick={doRegLeave} style={S.btnPrimary}>確認登記</button>
             </div>
           </div>
-        </>}
-
-        {view === "overtime" && <>
-          <h2 style={S.title}>加班補休審核</h2>
-          <div style={{ display:"flex", gap:8, marginBottom:16 }}>
-            {[["pending","待審核"],["approved","已核准"],["rejected","已拒絕"]].map(([v, label]) => (
-              <button key={v} onClick={() => setOtViewFilter(v)}
-                style={{ ...S.toggleBtn, ...(otViewFilter === v ? S.toggleActive : {}), flex:"none", padding:"7px 16px" }}>
-                {label} ({otRequests.filter(r => r.status === v).length})
-              </button>
-            ))}
-          </div>
-          {otRequests.filter(r => r.status === otViewFilter).length === 0
-            ? <div style={S.empty}>沒有紀錄</div>
-            : (
-            <div style={S.tableWrap}>
-              <table style={S.table}>
-                <thead><tr>{["同工","加班日期","天數","事由","狀態","操作"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
-                <tbody>
-                  {otRequests.filter(r => r.status === otViewFilter).map(r => (
-                    <tr key={r.id} style={S.tr}>
-                      <td style={S.td}>{r.empName}</td>
-                      <td style={S.td}>{r.date}</td>
-                      <td style={S.td}>{r.dur} 天</td>
-                      <td style={S.td}>{r.note || "—"}</td>
-                      <td style={S.td}><span style={{ ...S.badge, ...statusStyle(r.status) }}>
-                        {r.status === "pending" ? "待審核" : r.status === "approved" ? "已核准" : "已拒絕"}
-                      </span></td>
-                      <td style={S.td}>{r.status === "pending" && (
-                        <div style={{ display:"flex", gap:6 }}>
-                          <button onClick={() => approveOT(r)} style={S.btnSm}>✓ 核准</button>
-                          <button onClick={() => rejectOT(r.id)} style={{ ...S.btnSm, background:"#fef2f2", color:"#dc2626" }}>✗ 拒絕</button>
-                        </div>
-                      )}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
         </>}
 
         {view === "records" && <>

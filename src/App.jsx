@@ -80,11 +80,11 @@ export default function App() {
   const [adjTarget, setAdjTarget] = useState("");
   const [adjField, setAdjField]   = useState("annualDays");
   const [adjDir, setAdjDir]       = useState("+");
-  const [adjAmt, setAdjAmt]       = useState("");
+  const [adjAmt, setAdjAmt]       = useState("1");
   const [adjNote, setAdjNote]     = useState("");
   const [adjDate, setAdjDate]     = useState("");
   const [bulkField, setBulkField] = useState("annualDays");
-  const [bulkAmt, setBulkAmt]     = useState("");
+  const [bulkAmt, setBulkAmt]     = useState("1");
   const [bulkNote, setBulkNote]   = useState("");
   const [bulkDate, setBulkDate]   = useState("");
   const [regEmp, setRegEmp]             = useState("");

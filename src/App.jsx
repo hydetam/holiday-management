@@ -90,6 +90,10 @@ export default function App() {
   const [regCustomDays, setRegCustomDays] = useState("");
   const [regDateStart, setRegDateStart] = useState("");
   const [regNote, setRegNote]           = useState("");
+  const [regOtEmp, setRegOtEmp]         = useState("");
+  const [regOtDate, setRegOtDate]       = useState("");
+  const [regOtDur, setRegOtDur]         = useState("1");
+  const [regOtNote, setRegOtNote]       = useState("");
   const [otViewFilter, setOtViewFilter] = useState("pending");
   const [newName, setNewName]     = useState("");
   const [newAnnual, setNewAnnual] = useState(10);
@@ -458,7 +462,7 @@ export default function App() {
 
           {/* Tabs */}
           <div style={{ display:"flex", gap:4, marginBottom:18, borderBottom:"2px solid #e2e8f0" }}>
-            {[["records","📋 假期紀錄"],["leave","📝 登記請假"],["ot","⏰ 加班補休"]].map(([id, label]) => (
+            {[["records","📋 假期紀錄"],["action","📝 登記"]].map(([id, label]) => (
               <button key={id} onClick={() => setDetailView(id)}
                 style={{ ...S.tab, fontSize:13, padding:"10px 14px",
                   ...(detailView === id ? { color:"#2563eb", borderBottom:"3px solid #2563eb" } : {}) }}>
@@ -488,32 +492,16 @@ export default function App() {
             )
           )}
 
-          {/* Leave form */}
-          {detailView === "leave" && (
-            <div style={S.card}>
-              <div style={S.infoBox}>
-                補休不足時無法登記請假。
-              </div>
-              <DateDurPicker
-                dateLabel="請假日期 / 天數"
-                dur={empDur} setDur={setEmpDur}
-                dateStart={empDateStart} setDateStart={setEmpDateStart}
-                minCustom="0.5"
-              />
-              <div style={{ marginTop:16 }}>
-                <button onClick={doEmpLeave} style={S.btnPrimary}>確認登記請假</button>
-              </div>
-            </div>
-          )}
+          {/* Unified action form */}
+          {detailView === "action" && (
+            <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
 
-          {/* OT form */}
-          {detailView === "ot" && (
-            <div>
+              {/* + 加班 */}
               <div style={S.card}>
-                <div style={S.infoBox}>登記加班後，補休天數即時更新。</div>
-                <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+                <h3 style={{ fontSize:14, fontWeight:700, color:"#16a34a", marginBottom:14 }}>＋ 加班（增加補休）</h3>
+                <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
                   <div style={S.fg}>
-                    <label style={S.label}>加班日期</label>
+                    <label style={S.label}>日期</label>
                     <input type="date" value={otDateStart} onChange={e => setOtDateStart(e.target.value)} style={S.input} />
                   </div>
                   <div style={S.fg}>
@@ -521,34 +509,33 @@ export default function App() {
                     <NumInput value={otDur} onChange={setOtDur} min={0.5} />
                   </div>
                   <div style={S.fg}>
-                    <label style={S.label}>事由</label>
+                    <label style={S.label}>說明</label>
                     <input placeholder="加班原因..." value={otNote} onChange={e => setOtNote(e.target.value)} style={S.input} />
                   </div>
                 </div>
-                <div style={{ marginTop:16 }}>
-                  <button onClick={doOT} style={S.btnPrimary}>確認登記加班補休</button>
+                <div style={{ marginTop:14 }}>
+                  <button onClick={doOT} style={{ ...S.btnPrimary, background:"#16a34a" }}>確認登記加班</button>
                 </div>
               </div>
 
-              {myOtReqs.length > 0 && (
-                <>
-                  <h3 style={{ fontSize:14, fontWeight:700, color:"#374151", margin:"4px 0 10px" }}>我的加班登記紀錄</h3>
-                  <div style={S.tableWrap}>
-                    <table style={S.table}>
-                      <thead><tr>{["加班日期","天數","事由"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
-                      <tbody>
-                        {myOtReqs.map(r => (
-                          <tr key={r.id} style={S.tr}>
-                            <td style={S.td}>{r.date}</td>
-                            <td style={S.td}>{r.dur} 天</td>
-                            <td style={S.td}>{r.note || "—"}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+              {/* - 請假 */}
+              <div style={S.card}>
+                <h3 style={{ fontSize:14, fontWeight:700, color:"#dc2626", marginBottom:14 }}>－ 請假（扣除補休）</h3>
+                <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                  <div style={S.fg}>
+                    <label style={S.label}>日期</label>
+                    <input type="date" value={empDateStart} onChange={e => setEmpDateStart(e.target.value)} style={S.input} />
                   </div>
-                </>
-              )}
+                  <div style={S.fg}>
+                    <label style={S.label}>天數</label>
+                    <NumInput value={empDur} onChange={setEmpDur} min={0.5} />
+                  </div>
+                </div>
+                <div style={{ marginTop:14 }}>
+                  <button onClick={doEmpLeave} style={{ ...S.btnPrimary, background:"#dc2626" }}>確認登記請假</button>
+                </div>
+              </div>
+
             </div>
           )}
         </div>
@@ -569,7 +556,7 @@ export default function App() {
             ["dashboard","📊 總覽"],
             ["bulk","➕ 全員加假"],
             ["adjust","✏️ 個人調整"],
-            ["leave","📝 登記請假"],
+            ["leave","📝 登記假期"],
             ["records","📋 紀錄"],
             ["employees","👥 同工管理"],
           ].map(([id, label]) => (
@@ -667,33 +654,72 @@ export default function App() {
         </>}
 
         {view === "leave" && <>
-          <h2 style={S.title}>登記同工請假</h2>
-          <div style={S.card}>
-            <div style={S.infoBox}>補休不足時無法登記。</div>
-            <div style={{ marginBottom:14 }}>
-              <label style={S.label}>選擇同工</label>
-              <select value={regEmp} onChange={e => setRegEmp(e.target.value)} style={{ ...S.select, marginTop:6 }}>
-                <option value="">-- 選擇同工 --</option>
-                {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-              </select>
+          <h2 style={S.title}>登記同工假期</h2>
+          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+
+            {/* ＋ 加班 */}
+            <div style={S.card}>
+              <h3 style={{ fontSize:14, fontWeight:700, color:"#16a34a", marginBottom:14 }}>＋ 加班（增加補休）</h3>
+              <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                <div style={S.fg}>
+                  <label style={S.label}>同工</label>
+                  <select value={regOtEmp} onChange={e => setRegOtEmp(e.target.value)} style={S.select}>
+                    <option value="">-- 選擇同工 --</option>
+                    {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                  </select>
+                </div>
+                <div style={S.fg}>
+                  <label style={S.label}>日期</label>
+                  <input type="date" value={regOtDate} onChange={e => setRegOtDate(e.target.value)} style={S.input} />
+                </div>
+                <div style={S.fg}>
+                  <label style={S.label}>天數</label>
+                  <NumInput value={regOtDur} onChange={setRegOtDur} min={0.5} />
+                </div>
+                <div style={S.fg}>
+                  <label style={S.label}>說明</label>
+                  <input placeholder="加班原因..." value={regOtNote}
+                    onChange={e => setRegOtNote(e.target.value)} style={S.input} />
+                </div>
+              </div>
+              {regOtEmp && (() => {
+                const e = employees.find(x => x.id === regOtEmp);
+                return e ? <div style={{ ...S.infoBox, marginTop:12 }}>{e.name}｜補休 {e.compDays} 天</div> : null;
+              })()}
+              <div style={{ marginTop:14 }}>
+                <button onClick={doRegOT} style={{ ...S.btnPrimary, background:"#16a34a" }}>確認登記加班</button>
+              </div>
             </div>
-            <DateDurPicker
-              dateLabel="請假日期 / 天數"
-              dur={regDur} setDur={setRegDur}
-              dateStart={regDateStart} setDateStart={setRegDateStart}
-            />
-            <div style={{ ...S.fg, marginTop:14 }}>
-              <label style={S.label}>備註（選填）</label>
-              <input placeholder="請假原因..." value={regNote}
-                onChange={e => setRegNote(e.target.value)} style={S.input} />
+
+            {/* － 請假 */}
+            <div style={S.card}>
+              <h3 style={{ fontSize:14, fontWeight:700, color:"#dc2626", marginBottom:14 }}>－ 請假（扣除補休）</h3>
+              <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                <div style={S.fg}>
+                  <label style={S.label}>同工</label>
+                  <select value={regEmp} onChange={e => setRegEmp(e.target.value)} style={S.select}>
+                    <option value="">-- 選擇同工 --</option>
+                    {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                  </select>
+                </div>
+                <div style={S.fg}>
+                  <label style={S.label}>日期</label>
+                  <input type="date" value={regDateStart} onChange={e => setRegDateStart(e.target.value)} style={S.input} />
+                </div>
+                <div style={S.fg}>
+                  <label style={S.label}>天數</label>
+                  <NumInput value={regDur} onChange={setRegDur} min={0.5} />
+                </div>
+              </div>
+              {regEmp && (() => {
+                const e = employees.find(x => x.id === regEmp);
+                return e ? <div style={{ ...S.infoBox, marginTop:12 }}>{e.name}｜補休 {e.compDays} 天</div> : null;
+              })()}
+              <div style={{ marginTop:14 }}>
+                <button onClick={doRegLeave} style={{ ...S.btnPrimary, background:"#dc2626" }}>確認登記請假</button>
+              </div>
             </div>
-            {regEmp && (() => {
-              const e = employees.find(x => x.id === regEmp);
-              return e ? <div style={{ ...S.infoBox, marginTop:14 }}>{e.name}｜補休 {e.compDays} 天</div> : null;
-            })()}
-            <div style={{ marginTop:14 }}>
-              <button onClick={doRegLeave} style={S.btnPrimary}>確認登記</button>
-            </div>
+
           </div>
         </>}
 

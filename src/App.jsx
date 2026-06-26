@@ -140,12 +140,8 @@ export default function App() {
   const logout = () => { setRole(null); setCurrentUser(null); setAdminPw(""); setShowAdminLogin(false); };
 
   const calcDeduct = (emp, dur) => {
-    const total = +(emp.annualDays + emp.compDays).toFixed(1);
-    if (total < dur) return { ok: false };
-    let remain = dur, na = emp.annualDays, nc = emp.compDays;
-    if (na >= remain) { na = +(na - remain).toFixed(1); remain = 0; }
-    else { remain = +(remain - na).toFixed(1); na = 0; nc = +(nc - remain).toFixed(1); }
-    return { ok: true, newAnnual: na, newComp: nc };
+    if (emp.compDays < dur) return { ok: false };
+    return { ok: true, newComp: +(emp.compDays - dur).toFixed(1) };
   };
 
   const getDurVal   = (dur) => +dur;
@@ -159,13 +155,11 @@ export default function App() {
     const emp = employees.find(e => e.id === adjTarget);
     const delta = adjDir === "+" ? +adjAmt : -adjAmt;
     const newVal = Math.max(0, +(emp[adjField] + delta).toFixed(1));
-    const na = adjField === "annualDays" ? newVal : emp.annualDays;
-    const nc = adjField === "compDays"   ? newVal : emp.compDays;
-    await updateEmployeeDays(emp.id, na, nc);
+    await updateEmployeeDays(emp.id, Math.max(0, +(emp.compDays + (adjDir === "+" ? +adjAmt : -adjAmt)).toFixed(1)));
     await addLeaveRecord({ empId: emp.id, empName: emp.name,
-      type: adjField === "annualDays" ? "匠愛假期（調整）" : "補休（調整）",
+      type: "補休（調整）",
       date: today(), duration: `${adjDir}${adjAmt}天`, note: adjNote, by: "後台管理" });
-    showSuccess("✅ 調整完成", `已${adjDir === "+" ? "增加" : "扣除"} ${emp.name} ${adjAmt} 天（${adjField === "annualDays" ? "匠愛假期" : "補休"}）`);
+    showSuccess("✅ 調整完成", `已${adjDir === "+" ? "增加" : "扣除"} ${emp.name} ${adjAmt} 天補休`);
     setAdjNote(""); setAdjAmt("");
   };
 
@@ -174,14 +168,12 @@ export default function App() {
     if (!bulkAmt || +bulkAmt <= 0) { notify("請輸入天數", "error"); return; }
     const delta = +bulkAmt;
     for (const emp of employees) {
-      const na = bulkField === "annualDays" ? +(emp.annualDays + delta).toFixed(1) : emp.annualDays;
-      const nc = bulkField === "compDays"   ? +(emp.compDays   + delta).toFixed(1) : emp.compDays;
-      await updateEmployeeDays(emp.id, na, nc);
+      await updateEmployeeDays(emp.id, +(emp.compDays + delta).toFixed(1));
       await addLeaveRecord({ empId: emp.id, empName: emp.name,
-        type: bulkField === "annualDays" ? "匠愛假期（全員）" : "補休（全員）",
+        type: "補休（全員）",
         date: today(), duration: `+${delta}天`, note: bulkNote, by: "後台管理" });
     }
-    showSuccess("✅ 全員加假完成", `已為全部 ${employees.length} 位同工各增加 ${delta} 天（${bulkField === "annualDays" ? "匠愛假期" : "補休"}）`);
+    showSuccess("✅ 全員加假完成", `已為全部 ${employees.length} 位同工各增加 ${delta} 天補休`);
     setBulkNote(""); setBulkAmt("");
   };
 
@@ -193,7 +185,7 @@ export default function App() {
     if (!dur || dur <= 0) { notify("請輸入有效天數", "error"); return; }
     const result = calcDeduct(emp, dur);
     if (!result.ok) { notify(`${emp.name} 假期不足！`, "error"); return; }
-    await updateEmployeeDays(emp.id, result.newAnnual, result.newComp);
+    await updateEmployeeDays(emp.id, result.newComp);
     const dl = +regDur > 1 ? `${regDateStart} 起 ${dur} 天` : regDateStart;
     const label = getDurLabel(regDur);
     await addLeaveRecord({ empId: emp.id, empName: emp.name,
@@ -210,7 +202,7 @@ export default function App() {
   const approveOT = async (req) => {
     const emp = employees.find(e => e.id === req.empId);
     if (!emp) return;
-    await updateEmployeeDays(emp.id, emp.annualDays, +(emp.compDays + req.dur).toFixed(1));
+    await updateEmployeeDays(emp.id, +(emp.compDays + req.dur).toFixed(1));
     await updateOtStatus(req.id, "approved");
     await addLeaveRecord({ empId: emp.id, empName: emp.name,
       type: "補休（加班核准）", date: req.date,
@@ -222,8 +214,8 @@ export default function App() {
   const addEmployee = async () => {
     if (!newName.trim()) return;
     const id = `emp_${Date.now()}`;
-    await saveEmployee({ id, name: newName.trim(), annualDays: +newAnnual, compDays: 0 });
-    showSuccess("✅ 新增同工完成", `「${newName.trim()}」已加入，初始匠愛假期 ${newAnnual} 天。`);
+    await saveEmployee({ id, name: newName.trim(), compDays: +newAnnual });
+    showSuccess("✅ 新增同工完成", `「${newName.trim()}」已加入，初始補休 ${newAnnual} 天。`);
     setNewName(""); setNewAnnual(10);
   };
   const removeEmployee = async (id) => { await deleteEmployee(id); notify("已刪除同工", "error"); };
@@ -247,15 +239,9 @@ export default function App() {
     if (diff !== 0) {
       const emp = employees.find(e => e.id === editRec.empId);
       if (emp) {
-        const isComp = editRec.type.includes("補休");
         const isPlus = editRec.duration.startsWith("+");
-        if (isComp) {
-          const newComp = Math.max(0, +(emp.compDays + (isPlus ? diff : -diff)).toFixed(1));
-          await updateEmployeeDays(emp.id, emp.annualDays, newComp);
-        } else {
-          const newAnnual = Math.max(0, +(emp.annualDays + (isPlus ? diff : -diff)).toFixed(1));
-          await updateEmployeeDays(emp.id, newAnnual, emp.compDays);
-        }
+        const newComp = Math.max(0, +(emp.compDays + (isPlus ? diff : -diff)).toFixed(1));
+        await updateEmployeeDays(emp.id, newComp);
       }
     }
     await updateLeaveRecord(editRec.id, { note: editNote, date: editDate, duration: editDuration });
@@ -267,19 +253,11 @@ export default function App() {
     const emp = employees.find(e => e.id === rec.empId);
     if (emp) {
       const days = parseDays(rec.duration);
-      const isComp = rec.type.includes("補休");
       const isPlus = rec.duration.startsWith("+");
-      if (isComp) {
-        const newComp = isPlus
-          ? Math.max(0, +(emp.compDays - days).toFixed(1))
-          : +(emp.compDays + days).toFixed(1);
-        await updateEmployeeDays(emp.id, emp.annualDays, newComp);
-      } else {
-        const newAnnual = isPlus
-          ? Math.max(0, +(emp.annualDays - days).toFixed(1))
-          : +(emp.annualDays + days).toFixed(1);
-        await updateEmployeeDays(emp.id, newAnnual, emp.compDays);
-      }
+      const newComp = isPlus
+        ? Math.max(0, +(emp.compDays - days).toFixed(1))
+        : +(emp.compDays + days).toFixed(1);
+      await updateEmployeeDays(emp.id, newComp);
     }
     await deleteLeaveRecord(rec.id);
     notify("已刪除紀錄，天數已更新", "error");
@@ -293,7 +271,7 @@ export default function App() {
     if (!dur || dur <= 0) { notify("請輸入有效天數", "error"); return; }
     const result = calcDeduct(emp, dur);
     if (!result.ok) { notify("假期不足！", "error"); return; }
-    await updateEmployeeDays(emp.id, result.newAnnual, result.newComp);
+    await updateEmployeeDays(emp.id, result.newComp);
     const dl = +empDur > 1 ? `${empDateStart} 起 ${dur} 天` : empDateStart;
     await addLeaveRecord({ empId: emp.id, empName: emp.name,
       type: "請假", date: dl, duration: getDurLabel(empDur), note: "請假", by: emp.name });
@@ -310,7 +288,7 @@ export default function App() {
     const dur = getDurVal(otDur);
     if (!dur || dur <= 0) { notify("請輸入有效天數", "error"); return; }
     const emp = employees.find(e => e.id === currentUser.id);
-    await updateEmployeeDays(emp.id, emp.annualDays, +(emp.compDays + dur).toFixed(1));
+    await updateEmployeeDays(emp.id, +(emp.compDays + dur).toFixed(1));
     await addLeaveRecord({ empId: emp.id, empName: emp.name,
       type: "補休（加班）", date: otDateStart,
       duration: `+${dur}天`, note: otNote || "加班", by: emp.name });
@@ -405,7 +383,7 @@ export default function App() {
         <div style={S.tableWrap}>
           <table style={S.table}>
             <thead>
-              <tr>{["同工","匠愛假期","補休","合計"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
+              <tr>{["同工","補休"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
             </thead>
             <tbody>
               {employees.map(e => (
@@ -418,9 +396,7 @@ export default function App() {
                     <span style={{ fontWeight:700, color:"#2563eb" }}>{e.name}</span>
                     <span style={{ fontSize:11, color:"#94a3b8", marginLeft:6 }}>→</span>
                   </td>
-                  <td style={S.td}><span style={{ ...S.badge, background:"#dcfce7", color:"#16a34a" }}>{e.annualDays} 天</span></td>
                   <td style={S.td}><span style={{ ...S.badge, background:"#dbeafe", color:"#1d4ed8" }}>{e.compDays} 天</span></td>
-                  <td style={S.td}><strong>{+(e.annualDays + e.compDays).toFixed(1)} 天</strong></td>
                 </tr>
               ))}
             </tbody>
@@ -471,9 +447,7 @@ export default function App() {
           {/* Stats */}
           <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:20 }}>
             {[
-              { label:"匠愛假期", val: emp?.annualDays, color:"#10b981" },
-              { label:"補休",     val: emp?.compDays,   color:"#3b82f6" },
-              { label:"合計可用", val: +((emp?.annualDays||0)+(emp?.compDays||0)).toFixed(1), color:"#8b5cf6" },
+              { label:"補休", val: emp?.compDays, color:"#3b82f6" },
             ].map(({ label, val, color }) => (
               <div key={label} style={{ background:"#f8fafc", borderRadius:12, padding:"14px 10px", textAlign:"center", borderTop:`3px solid ${color}` }}>
                 <div style={{ fontSize:28, fontWeight:900, color:"#1e293b" }}>{val}</div>
@@ -502,7 +476,7 @@ export default function App() {
                   <tbody>
                     {myRecs.map(r => (
                       <tr key={r.id} style={S.tr}>
-                        <td style={S.td}><span style={r.type.includes("補休") ? S.tagComp : S.tagAnnual}>{r.type}</span></td>
+                        <td style={S.td}><span style={S.tagComp}>{r.type}</span></td>
                         <td style={S.td}>{r.date || "—"}</td>
                         <td style={S.td}>{r.duration}</td>
                         <td style={S.td}>{r.note || "請假"}</td>
@@ -518,7 +492,7 @@ export default function App() {
           {detailView === "leave" && (
             <div style={S.card}>
               <div style={S.infoBox}>
-                系統自動扣除，先扣匠愛假期，不足再扣補休。
+                補休不足時無法登記請假。
               </div>
               <DateDurPicker
                 dateLabel="請假日期 / 天數"
@@ -611,14 +585,12 @@ export default function App() {
           <h2 style={S.title}>同工假期總覽</h2>
           <div style={S.tableWrap}>
             <table style={S.table}>
-              <thead><tr>{["同工","匠愛假期","補休","合計可用"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+              <thead><tr>{["同工","補休"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
               <tbody>
                 {employees.map(e => (
                   <tr key={e.id} style={S.tr}>
                     <td style={S.td}>{e.name}</td>
-                    <td style={S.td}><span style={{ ...S.badge, background: e.annualDays < 3 ? "#fef2f2" : "#dcfce7", color: e.annualDays < 3 ? "#dc2626" : "#16a34a" }}>{e.annualDays} 天</span></td>
-                    <td style={S.td}><span style={{ ...S.badge, background:"#dbeafe", color:"#1d4ed8" }}>{e.compDays} 天</span></td>
-                    <td style={S.td}><strong>{+(e.annualDays + e.compDays).toFixed(1)} 天</strong></td>
+                    <td style={S.td}><span style={{ ...S.badge, background: e.compDays < 3 ? "#fef2f2" : "#dbeafe", color: e.compDays < 3 ? "#dc2626" : "#1d4ed8" }}>{e.compDays} 天</span></td>
                   </tr>
                 ))}
               </tbody>
@@ -632,7 +604,7 @@ export default function App() {
             <div style={S.formGrid}>
               <div style={S.fg}>
                 <label style={S.label}>假期類型</label>
-                <Tog val={bulkField} onChange={setBulkField} opts={[["annualDays","匠愛假期"],["compDays","補休"]]} />
+                <div style={{ fontSize:13, color:"#64748b" }}>補休</div>
               </div>
               <div style={S.fg}>
                 <label style={S.label}>增加天數</label>
@@ -647,7 +619,7 @@ export default function App() {
             </div>
             <div style={S.previewBox}>
               將為 <strong>{employees.length}</strong> 位同工各增加 <strong>{bulkAmt} 天</strong>
-              （{bulkField === "annualDays" ? "匠愛假期" : "補休"}）：{employees.map(e => e.name).join("、")}
+              （補休）：{employees.map(e => e.name).join("、")}
             </div>
             <button onClick={doBulk} style={{ ...S.btnPrimary, background:"#7c3aed" }}>✓ 確認全員加假</button>
           </div>
@@ -666,7 +638,7 @@ export default function App() {
               </div>
               <div style={S.fg}>
                 <label style={S.label}>假期類型</label>
-                <Tog val={adjField} onChange={setAdjField} opts={[["annualDays","匠愛假期"],["compDays","補休"]]} />
+                <div style={{ fontSize:13, color:"#64748b" }}>補休</div>
               </div>
               <div style={S.fg}>
                 <label style={S.label}>操作</label>
@@ -688,7 +660,7 @@ export default function App() {
             </div>
             {adjTarget && (() => {
               const e = employees.find(x => x.id === adjTarget);
-              return e ? <div style={S.infoBox}>{e.name}｜匠愛假期 {e.annualDays} 天｜補休 {e.compDays} 天</div> : null;
+              return e ? <div style={S.infoBox}>{e.name}｜補休 {e.compDays} 天</div> : null;
             })()}
             <button onClick={doAdjust} style={S.btnPrimary}>確認調整</button>
           </div>
@@ -697,7 +669,7 @@ export default function App() {
         {view === "leave" && <>
           <h2 style={S.title}>登記同工請假</h2>
           <div style={S.card}>
-            <div style={S.infoBox}>先扣匠愛假期，不足再扣補休。</div>
+            <div style={S.infoBox}>補休不足時無法登記。</div>
             <div style={{ marginBottom:14 }}>
               <label style={S.label}>選擇同工</label>
               <select value={regEmp} onChange={e => setRegEmp(e.target.value)} style={{ ...S.select, marginTop:6 }}>
@@ -717,7 +689,7 @@ export default function App() {
             </div>
             {regEmp && (() => {
               const e = employees.find(x => x.id === regEmp);
-              return e ? <div style={{ ...S.infoBox, marginTop:14 }}>{e.name}｜匠愛假期 {e.annualDays} 天｜補休 {e.compDays} 天｜合計 {+(e.annualDays+e.compDays).toFixed(1)} 天</div> : null;
+              return e ? <div style={{ ...S.infoBox, marginTop:14 }}>{e.name}｜補休 {e.compDays} 天</div> : null;
             })()}
             <div style={{ marginTop:14 }}>
               <button onClick={doRegLeave} style={S.btnPrimary}>確認登記</button>
@@ -764,7 +736,7 @@ export default function App() {
                   {leaveRecords.map(r => (
                     <tr key={r.id} style={S.tr}>
                       <td style={S.td}>{r.empName}</td>
-                      <td style={S.td}><span style={r.type.includes("補休") ? S.tagComp : S.tagAnnual}>{r.type}</span></td>
+                      <td style={S.td}><span style={S.tagComp}>{r.type}</span></td>
                       <td style={S.td}>{r.date || "—"}</td>
                       <td style={S.td}>{r.duration}</td>
                       <td style={S.td}>{r.note}</td>
@@ -793,7 +765,7 @@ export default function App() {
                 <input placeholder="同工姓名" value={newName} onChange={e => setNewName(e.target.value)} style={S.input} />
               </div>
               <div style={S.fg}>
-                <label style={S.label}>初始匠愛假期天數</label>
+                <label style={S.label}>初始補休天數</label>
                 <input type="number" min="0" value={newAnnual} onChange={e => setNewAnnual(e.target.value)} style={S.input} />
               </div>
             </div>
@@ -801,12 +773,11 @@ export default function App() {
           </div>
           <div style={S.tableWrap}>
             <table style={S.table}>
-              <thead><tr>{["姓名","匠愛假期","補休","操作"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+              <thead><tr>{["姓名","補休","操作"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
               <tbody>
                 {employees.map(e => (
                   <tr key={e.id} style={S.tr}>
                     <td style={S.td}>{e.name}</td>
-                    <td style={S.td}>{e.annualDays} 天</td>
                     <td style={S.td}>{e.compDays} 天</td>
                     <td style={S.td}>
                       <button onClick={() => removeEmployee(e.id)}

@@ -39,11 +39,9 @@ export async function fetchEmployees() {
 }
 
 export async function saveEmployee(emp) {
-  // emp.id is either a Firestore doc id string, or we generate one
   const ref = doc(db, "employees", String(emp.id));
   await setDoc(ref, {
     name: emp.name,
-    annualDays: emp.annualDays,
     compDays: emp.compDays,
   });
 }
@@ -52,8 +50,8 @@ export async function deleteEmployee(id) {
   await deleteDoc(doc(db, "employees", String(id)));
 }
 
-export async function updateEmployeeDays(id, annualDays, compDays) {
-  await updateDoc(doc(db, "employees", String(id)), { annualDays, compDays });
+export async function updateEmployeeDays(id, compDays) {
+  await updateDoc(doc(db, "employees", String(id)), { compDays });
 }
 
 // ── Leave Records ────────────────────────────────────────────────────────────

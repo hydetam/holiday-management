@@ -82,9 +82,11 @@ export default function App() {
   const [adjDir, setAdjDir]       = useState("+");
   const [adjAmt, setAdjAmt]       = useState("");
   const [adjNote, setAdjNote]     = useState("");
+  const [adjDate, setAdjDate]     = useState("");
   const [bulkField, setBulkField] = useState("annualDays");
   const [bulkAmt, setBulkAmt]     = useState("");
   const [bulkNote, setBulkNote]   = useState("");
+  const [bulkDate, setBulkDate]   = useState("");
   const [regEmp, setRegEmp]             = useState("");
   const [regDur, setRegDur]             = useState("1");
   const [regCustomDays, setRegCustomDays] = useState("");
@@ -95,6 +97,7 @@ export default function App() {
   const [regOtDur, setRegOtDur]         = useState("1");
   const [regOtNote, setRegOtNote]       = useState("");
   const [otViewFilter, setOtViewFilter] = useState("pending");
+  const [adminDetailEmp, setAdminDetailEmp] = useState(null); // view single emp records in admin
   const [newName, setNewName]     = useState("");
   const [newAnnual, setNewAnnual] = useState(10);
   const [editRec, setEditRec]         = useState(null);
@@ -162,7 +165,7 @@ export default function App() {
     await updateEmployeeDays(emp.id, Math.max(0, +(emp.compDays + (adjDir === "+" ? +adjAmt : -adjAmt)).toFixed(1)));
     await addLeaveRecord({ empId: emp.id, empName: emp.name,
       type: "補休（調整）",
-      date: today(), duration: `${adjDir}${adjAmt}天`, note: adjNote, by: "後台管理" });
+      date: adjDate || today(), duration: `${adjDir}${adjAmt}天`, note: adjNote, by: "後台管理" });
     showSuccess("✅ 調整完成", `已${adjDir === "+" ? "增加" : "扣除"} ${emp.name} ${adjAmt} 天補休`);
     setAdjNote(""); setAdjAmt("");
   };
@@ -175,7 +178,7 @@ export default function App() {
       await updateEmployeeDays(emp.id, +(emp.compDays + delta).toFixed(1));
       await addLeaveRecord({ empId: emp.id, empName: emp.name,
         type: "補休（全員）",
-        date: today(), duration: `+${delta}天`, note: bulkNote, by: "後台管理" });
+        date: bulkDate || today(), duration: `+${delta}天`, note: bulkNote, by: "後台管理" });
     }
     showSuccess("✅ 全員加假完成", `已為全部 ${employees.length} 位同工各增加 ${delta} 天補休`);
     setBulkNote(""); setBulkAmt("");
@@ -570,14 +573,59 @@ export default function App() {
 
         {view === "dashboard" && <>
           <h2 style={S.title}>同工假期總覽</h2>
+
+          {/* Admin detail modal */}
+          {adminDetailEmp && (() => {
+            const emp = employees.find(e => e.id === adminDetailEmp);
+            const recs = leaveRecords.filter(r => r.empId === adminDetailEmp);
+            return (
+              <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:24 }}>
+                <div style={{ background:"#fff", borderRadius:18, padding:28, width:"100%", maxWidth:580, boxShadow:"0 25px 60px rgba(0,0,0,0.3)", maxHeight:"80vh", display:"flex", flexDirection:"column" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+                    <h3 style={{ fontSize:17, fontWeight:900, color:"#1e293b", margin:0 }}>{emp?.name} 的假期紀錄</h3>
+                    <button onClick={() => setAdminDetailEmp(null)}
+                      style={{ background:"#f1f5f9", border:"none", borderRadius:8, padding:"6px 12px", cursor:"pointer", fontSize:13, fontFamily:"inherit" }}>✕ 關閉</button>
+                  </div>
+                  <div style={{ background:"#f0f9ff", border:"1px solid #bae6fd", borderRadius:8, padding:"10px 14px", fontSize:13, color:"#0369a1", marginBottom:14 }}>
+                    補休：<strong>{emp?.compDays} 天</strong>
+                  </div>
+                  <div style={{ overflowY:"auto", flex:1 }}>
+                    {recs.length === 0 ? <div style={S.empty}>目前沒有紀錄</div> : (
+                      <div style={S.tableWrap}>
+                        <table style={S.table}>
+                          <thead><tr>{["類型","日期","天數","說明","操作者"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                          <tbody>
+                            {recs.map(r => (
+                              <tr key={r.id} style={S.tr}>
+                                <td style={S.td}><span style={S.tagComp}>{r.type}</span></td>
+                                <td style={S.td}>{r.date || "—"}</td>
+                                <td style={S.td}>{r.duration}</td>
+                                <td style={S.td}>{r.note}</td>
+                                <td style={S.td}>{r.by}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           <div style={S.tableWrap}>
             <table style={S.table}>
-              <thead><tr>{["同工","補休"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+              <thead><tr>{["同工","補休",""].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
               <tbody>
                 {employees.map(e => (
                   <tr key={e.id} style={S.tr}>
                     <td style={S.td}>{e.name}</td>
                     <td style={S.td}><span style={{ ...S.badge, background: e.compDays < 3 ? "#fef2f2" : "#dbeafe", color: e.compDays < 3 ? "#dc2626" : "#1d4ed8" }}>{e.compDays} 天</span></td>
+                    <td style={S.td}>
+                      <button onClick={() => setAdminDetailEmp(e.id)}
+                        style={{ ...S.btnSm, background:"#eff6ff", color:"#2563eb" }}>查看紀錄</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -590,13 +638,12 @@ export default function App() {
           <div style={S.card}>
             <div style={S.formGrid}>
               <div style={S.fg}>
-                <label style={S.label}>假期類型</label>
-                <div style={{ fontSize:13, color:"#64748b" }}>補休</div>
+                <label style={S.label}>日期</label>
+                <input type="date" value={bulkDate} onChange={e => setBulkDate(e.target.value)} style={S.input} />
               </div>
               <div style={S.fg}>
                 <label style={S.label}>增加天數</label>
-                <input type="number" min="0.5" step="0.5" placeholder="例如 1、2.5…"
-                  value={bulkAmt} onChange={e => setBulkAmt(e.target.value)} style={S.input} />
+                <NumInput value={bulkAmt} onChange={setBulkAmt} min={0.5} />
               </div>
               <div style={{ ...S.fg, gridColumn:"1 / -1" }}>
                 <label style={S.label}>說明 <span style={S.req}>*</span></label>
@@ -605,8 +652,7 @@ export default function App() {
               </div>
             </div>
             <div style={S.previewBox}>
-              將為 <strong>{employees.length}</strong> 位同工各增加 <strong>{bulkAmt} 天</strong>
-              （補休）：{employees.map(e => e.name).join("、")}
+              將為 <strong>{employees.length}</strong> 位同工各增加 <strong>{bulkAmt} 天</strong>補休：{employees.map(e => e.name).join("、")}
             </div>
             <button onClick={doBulk} style={{ ...S.btnPrimary, background:"#7c3aed" }}>✓ 確認全員加假</button>
           </div>
@@ -624,8 +670,8 @@ export default function App() {
                 </select>
               </div>
               <div style={S.fg}>
-                <label style={S.label}>假期類型</label>
-                <div style={{ fontSize:13, color:"#64748b" }}>補休</div>
+                <label style={S.label}>日期</label>
+                <input type="date" value={adjDate} onChange={e => setAdjDate(e.target.value)} style={S.input} />
               </div>
               <div style={S.fg}>
                 <label style={S.label}>操作</label>
@@ -636,8 +682,7 @@ export default function App() {
               </div>
               <div style={S.fg}>
                 <label style={S.label}>天數</label>
-                <input type="number" min="0.5" step="0.5" placeholder="例如 0.5、1、3…"
-                  value={adjAmt} onChange={e => setAdjAmt(e.target.value)} style={S.input} />
+                <NumInput value={adjAmt} onChange={setAdjAmt} min={0.5} />
               </div>
               <div style={{ ...S.fg, gridColumn:"1 / -1" }}>
                 <label style={S.label}>說明 <span style={S.req}>*</span></label>

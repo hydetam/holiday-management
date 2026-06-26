@@ -164,7 +164,7 @@ export default function App() {
     const newVal = Math.max(0, +(emp[adjField] + delta).toFixed(1));
     await updateEmployeeDays(emp.id, Math.max(0, +(emp.compDays + (adjDir === "+" ? +adjAmt : -adjAmt)).toFixed(1)));
     await addLeaveRecord({ empId: emp.id, empName: emp.name,
-      type: "調整補休（後台）",
+      type: "調整補休",
       date: adjDate || today(), duration: `${adjDir}${adjAmt}天`, note: adjNote, by: "後台管理" });
     showSuccess("✅ 調整完成", `已${adjDir === "+" ? "增加" : "扣除"} ${emp.name} ${adjAmt} 天補休`);
     setAdjNote(""); setAdjAmt("");
@@ -177,7 +177,7 @@ export default function App() {
     for (const emp of employees) {
       await updateEmployeeDays(emp.id, +(emp.compDays + delta).toFixed(1));
       await addLeaveRecord({ empId: emp.id, empName: emp.name,
-        type: "全員補休（後台）",
+        type: "全員補休",
         date: bulkDate || today(), duration: `+${delta}天`, note: bulkNote, by: "後台管理" });
     }
     showSuccess("✅ 全員加假完成", `已為全部 ${employees.length} 位同工各增加 ${delta} 天補休`);
@@ -196,7 +196,7 @@ export default function App() {
     const dl = +regDur > 1 ? `${regDateStart} 起 ${dur} 天` : regDateStart;
     const label = getDurLabel(regDur);
     await addLeaveRecord({ empId: emp.id, empName: emp.name,
-      type: "請假（後台）", date: dl, duration: label,
+      type: "請假", date: dl, duration: label,
       note: regNote || "請假", by: "後台管理" });
     // 寫入 Google 日曆
     try {
@@ -212,7 +212,7 @@ export default function App() {
     await updateEmployeeDays(emp.id, +(emp.compDays + req.dur).toFixed(1));
     await updateOtStatus(req.id, "approved");
     await addLeaveRecord({ empId: emp.id, empName: emp.name,
-      type: "登記加班（後台）", date: req.date,
+      type: "登記加班", date: req.date,
       duration: `+${req.dur}天`, note: req.note || "加班核准", by: "後台管理" });
     notify(`已核准 ${req.empName}，+${req.dur} 天補休`);
   };
@@ -556,7 +556,6 @@ export default function App() {
             ["dashboard","📊 總覽"],
             ["bulk","➕ 全員加假"],
             ["adjust","✏️ 個人調整"],
-            ["leave","📝 登記假期"],
             ["records","📋 紀錄"],
             ["employees","👥 同工管理"],
           ].map(([id, label]) => (
@@ -692,76 +691,6 @@ export default function App() {
               return e ? <div style={S.infoBox}>{e.name}｜補休 {e.compDays} 天</div> : null;
             })()}
             <button onClick={doAdjust} style={S.btnPrimary}>確認調整</button>
-          </div>
-        </>}
-
-        {view === "leave" && <>
-          <h2 style={S.title}>登記同工假期</h2>
-          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-
-            {/* ＋ 加班 */}
-            <div style={S.card}>
-              <h3 style={{ fontSize:14, fontWeight:700, color:"#16a34a", marginBottom:14 }}>＋ 加班（增加補休）</h3>
-              <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-                <div style={S.fg}>
-                  <label style={S.label}>同工</label>
-                  <select value={regOtEmp} onChange={e => setRegOtEmp(e.target.value)} style={S.select}>
-                    <option value="">-- 選擇同工 --</option>
-                    {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-                  </select>
-                </div>
-                <div style={S.fg}>
-                  <label style={S.label}>日期</label>
-                  <input type="date" value={regOtDate} onChange={e => setRegOtDate(e.target.value)} style={S.input} />
-                </div>
-                <div style={S.fg}>
-                  <label style={S.label}>天數</label>
-                  <NumInput value={regOtDur} onChange={setRegOtDur} min={0.5} />
-                </div>
-                <div style={S.fg}>
-                  <label style={S.label}>說明</label>
-                  <input placeholder="加班原因..." value={regOtNote}
-                    onChange={e => setRegOtNote(e.target.value)} style={S.input} />
-                </div>
-              </div>
-              {regOtEmp && (() => {
-                const e = employees.find(x => x.id === regOtEmp);
-                return e ? <div style={{ ...S.infoBox, marginTop:12 }}>{e.name}｜補休 {e.compDays} 天</div> : null;
-              })()}
-              <div style={{ marginTop:14 }}>
-                <button onClick={doRegOT} style={{ ...S.btnPrimary, background:"#16a34a" }}>確認登記加班</button>
-              </div>
-            </div>
-
-            {/* － 請假 */}
-            <div style={S.card}>
-              <h3 style={{ fontSize:14, fontWeight:700, color:"#dc2626", marginBottom:14 }}>－ 請假（扣除補休）</h3>
-              <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-                <div style={S.fg}>
-                  <label style={S.label}>同工</label>
-                  <select value={regEmp} onChange={e => setRegEmp(e.target.value)} style={S.select}>
-                    <option value="">-- 選擇同工 --</option>
-                    {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-                  </select>
-                </div>
-                <div style={S.fg}>
-                  <label style={S.label}>日期</label>
-                  <input type="date" value={regDateStart} onChange={e => setRegDateStart(e.target.value)} style={S.input} />
-                </div>
-                <div style={S.fg}>
-                  <label style={S.label}>天數</label>
-                  <NumInput value={regDur} onChange={setRegDur} min={0.5} />
-                </div>
-              </div>
-              {regEmp && (() => {
-                const e = employees.find(x => x.id === regEmp);
-                return e ? <div style={{ ...S.infoBox, marginTop:12 }}>{e.name}｜補休 {e.compDays} 天</div> : null;
-              })()}
-              <div style={{ marginTop:14 }}>
-                <button onClick={doRegLeave} style={{ ...S.btnPrimary, background:"#dc2626" }}>確認登記請假</button>
-              </div>
-            </div>
-
           </div>
         </>}
 

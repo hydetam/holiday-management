@@ -87,6 +87,7 @@ export default function App() {
   const [bulkAmt, setBulkAmt]     = useState("1");
   const [bulkNote, setBulkNote]   = useState("");
   const [bulkDate, setBulkDate]   = useState("");
+  const [bulkSelected, setBulkSelected] = useState([]);
   const [regEmp, setRegEmp]             = useState("");
   const [regDur, setRegDur]             = useState("1");
   const [regCustomDays, setRegCustomDays] = useState("");
@@ -630,8 +631,39 @@ export default function App() {
         </>}
 
         {view === "bulk" && <>
-          <h2 style={S.title}>全員增加假期</h2>
+          <h2 style={S.title}>增加假期</h2>
           <div style={S.card}>
+            {/* Checkboxes */}
+            <div style={{ marginBottom:16 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                <label style={S.label}>選擇同工</label>
+                <button
+                  onClick={() => setBulkSelected(
+                    bulkSelected.length === employees.length ? [] : employees.map(e => e.id)
+                  )}
+                  style={{ ...S.btnSm, background:"#eff6ff", color:"#2563eb", fontSize:12 }}>
+                  {bulkSelected.length === employees.length ? "取消全選" : "全選"}
+                </button>
+              </div>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+                {employees.map(e => (
+                  <label key={e.id} style={{
+                    display:"flex", alignItems:"center", gap:6, padding:"7px 12px",
+                    border: bulkSelected.includes(e.id) ? "1.5px solid #3b82f6" : "1.5px solid #e2e8f0",
+                    borderRadius:8, cursor:"pointer", fontSize:13, fontWeight:600,
+                    background: bulkSelected.includes(e.id) ? "#eff6ff" : "#f8fafc",
+                    color: bulkSelected.includes(e.id) ? "#2563eb" : "#475569",
+                  }}>
+                    <input type="checkbox" checked={bulkSelected.includes(e.id)}
+                      onChange={() => setBulkSelected(prev =>
+                        prev.includes(e.id) ? prev.filter(id => id !== e.id) : [...prev, e.id]
+                      )}
+                      style={{ accentColor:"#3b82f6" }} />
+                    {e.name}
+                  </label>
+                ))}
+              </div>
+            </div>
             <div style={S.formGrid}>
               <div style={S.fg}>
                 <label style={S.label}>日期</label>
@@ -647,10 +679,13 @@ export default function App() {
                   onChange={e => setBulkNote(e.target.value)} style={S.input} />
               </div>
             </div>
-            <div style={S.previewBox}>
-              將為 <strong>{employees.length}</strong> 位同工各增加 <strong>{bulkAmt} 天</strong>補休：{employees.map(e => e.name).join("、")}
-            </div>
-            <button onClick={doBulk} style={{ ...S.btnPrimary, background:"#7c3aed" }}>✓ 確認全員加假</button>
+            {bulkSelected.length > 0 && (
+              <div style={S.previewBox}>
+                將為 <strong>{bulkSelected.length}</strong> 位同工各增加 <strong>{bulkAmt} 天</strong>補休：
+                {employees.filter(e => bulkSelected.includes(e.id)).map(e => e.name).join("、")}
+              </div>
+            )}
+            <button onClick={doBulk} style={{ ...S.btnPrimary, background:"#7c3aed" }}>✓ 確認加假</button>
           </div>
         </>}
 

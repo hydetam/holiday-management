@@ -83,6 +83,7 @@ export default function App() {
   const [adjAmt, setAdjAmt]       = useState("1");
   const [adjNote, setAdjNote]     = useState("");
   const [adjDate, setAdjDate]     = useState("");
+  const [adjSelected, setAdjSelected] = useState([]);
   const [bulkField, setBulkField] = useState("annualDays");
   const [bulkAmt, setBulkAmt]     = useState("1");
   const [bulkNote, setBulkNote]   = useState("");
@@ -557,8 +558,7 @@ export default function App() {
         <div style={S.tabs}>
           {[
             ["dashboard","📊 總覽"],
-            ["bulk","➕ 全員加假"],
-            ["adjust","✏️ 個人調整"],
+            ["adjust","✏️ 假期調整"],
             ["records","📋 紀錄"],
             ["employees","👥 同工管理"],
           ].map(([id, label]) => (
@@ -632,80 +632,44 @@ export default function App() {
           </div>
         </>}
 
-        {view === "bulk" && <>
-          <h2 style={S.title}>增加假期</h2>
+        {view === "adjust" && <>
+          <h2 style={S.title}>假期調整</h2>
           <div style={S.card}>
+
             {/* Checkboxes */}
             <div style={{ marginBottom:16 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
                 <label style={S.label}>選擇同工</label>
                 <button
-                  onClick={() => setBulkSelected(
-                    bulkSelected.length === employees.length ? [] : employees.map(e => e.id)
+                  onClick={() => setAdjSelected(
+                    adjSelected.length === employees.length ? [] : employees.map(e => e.id)
                   )}
                   style={{ ...S.btnSm, background:"#eff6ff", color:"#2563eb", fontSize:12 }}>
-                  {bulkSelected.length === employees.length ? "取消全選" : "全選"}
+                  {adjSelected.length === employees.length ? "取消全選" : "全選"}
                 </button>
               </div>
               <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
                 {employees.map(e => (
                   <label key={e.id} style={{
                     display:"flex", alignItems:"center", gap:6, padding:"7px 12px",
-                    border: bulkSelected.includes(e.id) ? "1.5px solid #3b82f6" : "1.5px solid #e2e8f0",
+                    border: adjSelected.includes(e.id) ? "1.5px solid #3b82f6" : "1.5px solid #e2e8f0",
                     borderRadius:8, cursor:"pointer", fontSize:13, fontWeight:600,
-                    background: bulkSelected.includes(e.id) ? "#eff6ff" : "#f8fafc",
-                    color: bulkSelected.includes(e.id) ? "#2563eb" : "#475569",
+                    background: adjSelected.includes(e.id) ? "#eff6ff" : "#f8fafc",
+                    color: adjSelected.includes(e.id) ? "#2563eb" : "#475569",
                   }}>
-                    <input type="checkbox" checked={bulkSelected.includes(e.id)}
-                      onChange={() => setBulkSelected(prev =>
+                    <input type="checkbox" checked={adjSelected.includes(e.id)}
+                      onChange={() => setAdjSelected(prev =>
                         prev.includes(e.id) ? prev.filter(id => id !== e.id) : [...prev, e.id]
                       )}
                       style={{ accentColor:"#3b82f6" }} />
                     {e.name}
+                    <span style={{ fontSize:11, color:"#94a3b8", fontWeight:400 }}>（{e.compDays}天）</span>
                   </label>
                 ))}
               </div>
             </div>
-            <div style={S.formGrid}>
-              <div style={S.fg}>
-                <label style={S.label}>日期</label>
-                <input type="date" value={bulkDate} onChange={e => setBulkDate(e.target.value)} style={S.input} />
-              </div>
-              <div style={S.fg}>
-                <label style={S.label}>增加天數</label>
-                <NumInput value={bulkAmt} onChange={setBulkAmt} min={0.5} />
-              </div>
-              <div style={{ ...S.fg, gridColumn:"1 / -1" }}>
-                <label style={S.label}>說明 <span style={S.req}>*</span></label>
-                <input placeholder="例如：年度假期發放..." value={bulkNote}
-                  onChange={e => setBulkNote(e.target.value)} style={S.input} />
-              </div>
-            </div>
-            {bulkSelected.length > 0 && (
-              <div style={S.previewBox}>
-                將為 <strong>{bulkSelected.length}</strong> 位同工各增加 <strong>{bulkAmt} 天</strong>補休：
-                {employees.filter(e => bulkSelected.includes(e.id)).map(e => e.name).join("、")}
-              </div>
-            )}
-            <button onClick={doBulk} style={{ ...S.btnPrimary, background:"#7c3aed" }}>✓ 確認加假</button>
-          </div>
-        </>}
 
-        {view === "adjust" && <>
-          <h2 style={S.title}>個人天數調整</h2>
-          <div style={S.card}>
             <div style={S.formGrid}>
-              <div style={S.fg}>
-                <label style={S.label}>選擇同工</label>
-                <select value={adjTarget} onChange={e => setAdjTarget(e.target.value)} style={S.select}>
-                  <option value="">-- 選擇同工 --</option>
-                  {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-                </select>
-              </div>
-              <div style={S.fg}>
-                <label style={S.label}>日期</label>
-                <input type="date" value={adjDate} onChange={e => setAdjDate(e.target.value)} style={S.input} />
-              </div>
               <div style={S.fg}>
                 <label style={S.label}>操作</label>
                 <div style={S.toggle}>
@@ -717,17 +681,23 @@ export default function App() {
                 <label style={S.label}>天數</label>
                 <NumInput value={adjAmt} onChange={setAdjAmt} min={0.5} />
               </div>
-              <div style={{ ...S.fg, gridColumn:"1 / -1" }}>
+              <div style={S.fg}>
+                <label style={S.label}>日期</label>
+                <input type="date" value={adjDate} onChange={e => setAdjDate(e.target.value)} style={S.input} />
+              </div>
+              <div style={S.fg}>
                 <label style={S.label}>說明 <span style={S.req}>*</span></label>
-                <input placeholder="例如：年度調整、特殊假期..." value={adjNote}
+                <input placeholder="例如：年度調整..." value={adjNote}
                   onChange={e => setAdjNote(e.target.value)} style={S.input} />
               </div>
             </div>
-            {adjTarget && (() => {
-              const e = employees.find(x => x.id === adjTarget);
-              return e ? <div style={S.infoBox}>{e.name}｜補休 {e.compDays} 天</div> : null;
-            })()}
-            <button onClick={doAdjust} style={S.btnPrimary}>確認調整</button>
+
+            {adjSelected.length > 0 && (
+              <div style={S.previewBox}>
+                將{adjDir === "+" ? "增加" : "扣除"} <strong>{employees.filter(e => adjSelected.includes(e.id)).map(e => e.name).join("、")}</strong> 各 <strong>{adjAmt} 天</strong>補休
+              </div>
+            )}
+            <button onClick={doAdjust} style={{ ...S.btnPrimary, background: adjDir === "+" ? "#7c3aed" : "#dc2626" }}>確認調整</button>
           </div>
         </>}
 

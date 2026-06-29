@@ -158,18 +158,19 @@ export default function App() {
 
   // ── Admin actions ────────────────────────────────────────────────────────
   const doAdjust = async () => {
-    if (!adjTarget) { notify("請選擇同工", "error"); return; }
+    if (adjSelected.length === 0) { notify("請選擇同工", "error"); return; }
     if (!adjNote.trim()) { notify("請填寫說明", "error"); return; }
     if (!adjAmt || +adjAmt <= 0) { notify("請輸入有效天數", "error"); return; }
-    const emp = employees.find(e => e.id === adjTarget);
-    const delta = adjDir === "+" ? +adjAmt : -adjAmt;
-    const newVal = Math.max(0, +(emp[adjField] + delta).toFixed(1));
-    await updateEmployeeDays(emp.id, Math.max(0, +(emp.compDays + (adjDir === "+" ? +adjAmt : -adjAmt)).toFixed(1)));
-    await addLeaveRecord({ empId: emp.id, empName: emp.name,
-      type: "調整補休",
-      date: adjDate || today(), duration: `${adjDir}${adjAmt}天`, note: adjNote, by: "後台管理" });
-    showSuccess("✅ 調整完成", `已${adjDir === "+" ? "增加" : "扣除"} ${emp.name} ${adjAmt} 天補休`);
-    setAdjNote(""); setAdjAmt("");
+    const targets = employees.filter(e => adjSelected.includes(e.id));
+    for (const emp of targets) {
+      const newComp = Math.max(0, +(emp.compDays + (adjDir === "+" ? +adjAmt : -adjAmt)).toFixed(1));
+      await updateEmployeeDays(emp.id, newComp);
+      await addLeaveRecord({ empId: emp.id, empName: emp.name,
+        type: "調整補休",
+        date: adjDate || today(), duration: `${adjDir}${adjAmt}天`, note: adjNote, by: "後台管理" });
+    }
+    showSuccess("✅ 調整完成", `已${adjDir === "+" ? "增加" : "扣除"} ${targets.map(e => e.name).join("、")} ${adjAmt} 天補休`);
+    setAdjNote(""); setAdjAmt("1"); setAdjSelected([]);
   };
 
   const doBulk = async () => {

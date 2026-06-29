@@ -56,6 +56,8 @@ const S = {
   backBtn:      { background:"transparent", border:"none", color:"#2563eb", cursor:"pointer", fontSize:13, fontWeight:700, fontFamily:F, marginBottom:16, padding:0 },
 };
 
+const today = () => new Date().toISOString().split("T")[0];
+
 export default function App() {
   const [employees, setEmployees]       = useState([]);
   const [leaveRecords, setLeaveRecords] = useState([]);
@@ -111,7 +113,6 @@ export default function App() {
   // ── Helpers ──────────────────────────────────────────────────────────────
   const notify = (msg, type = "success") => { setNotification({ msg, type }); setTimeout(() => setNotification(null), 3000); };
   const showSuccess = (title, body) => setSuccessModal({ title, body });
-  const today = () => new Date().toISOString().split("T")[0];
 
   const loginAdmin = () => {
     if (adminPw === ADMIN_PASSWORD) { setRole("admin"); setView("dashboard"); setPwError(false); setShowAdminLogin(false); }

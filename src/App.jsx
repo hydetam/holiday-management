@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
 import {
-  listenEmployees, listenLeaveRecords, listenOtRequests,
+  listenEmployees, listenLeaveRecords,
   saveEmployee, deleteEmployee, updateEmployeeDays,
   addLeaveRecord, deleteLeaveRecord, updateLeaveRecord,
-  addOtRequest, updateOtStatus,
   callAddLeaveToCalendar,
 } from "./firebase.js";
 
@@ -46,12 +45,9 @@ const S = {
   tr:           { borderBottom:"1px solid #f1f5f9" },
   td:           { padding:"12px 14px", fontSize:13, color:"#334155" },
   badge:        { display:"inline-block", padding:"3px 10px", borderRadius:20, fontSize:12, fontWeight:600 },
-  tagAnnual:    { background:"#dcfce7", color:"#16a34a", borderRadius:6, padding:"2px 8px", fontSize:11, fontWeight:700 },
   tagComp:      { background:"#dbeafe", color:"#1d4ed8", borderRadius:6, padding:"2px 8px", fontSize:11, fontWeight:700 },
   infoBox:      { background:"#f0f9ff", border:"1px solid #bae6fd", borderRadius:8, padding:"9px 13px", fontSize:13, color:"#0369a1", marginBottom:14 },
   previewBox:   { background:"#faf5ff", border:"1px solid #d8b4fe", borderRadius:8, padding:"10px 14px", fontSize:13, color:"#6d28d9", marginBottom:16 },
-  alertBox:     { background:"#fffbeb", border:"1px solid #fcd34d", borderRadius:10, padding:"11px 14px", fontSize:13, color:"#92400e", marginBottom:18, display:"flex", alignItems:"center", gap:10 },
-  alertBtn:     { background:"#f59e0b", color:"#fff", border:"none", borderRadius:6, padding:"4px 10px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:F },
   empty:        { background:"#fff", borderRadius:14, padding:36, textAlign:"center", color:"#94a3b8", fontSize:13 },
   toast:        { position:"fixed", top:20, right:20, color:"#fff", padding:"11px 18px", borderRadius:10, fontSize:13, fontWeight:700, zIndex:9999, boxShadow:"0 4px 12px rgba(0,0,0,0.2)", fontFamily:F },
   loading:      { minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, color:"#64748b", fontFamily:F },
@@ -63,7 +59,6 @@ const S = {
 export default function App() {
   const [employees, setEmployees]       = useState([]);
   const [leaveRecords, setLeaveRecords] = useState([]);
-  const [otRequests, setOtRequests]     = useState([]);
   const [loading, setLoading]           = useState(true);
 
   const [role, setRole]                 = useState(null);
@@ -77,28 +72,11 @@ export default function App() {
   const [detailView, setDetailView]     = useState("records");
 
   // Admin form states
-  const [adjTarget, setAdjTarget] = useState("");
-  const [adjField, setAdjField]   = useState("annualDays");
   const [adjDir, setAdjDir]       = useState("+");
   const [adjAmt, setAdjAmt]       = useState("1");
   const [adjNote, setAdjNote]     = useState("");
-  const [adjDate, setAdjDate]     = useState("");
+  const [adjDate, setAdjDate]     = useState(today());
   const [adjSelected, setAdjSelected] = useState([]);
-  const [bulkField, setBulkField] = useState("annualDays");
-  const [bulkAmt, setBulkAmt]     = useState("1");
-  const [bulkNote, setBulkNote]   = useState("");
-  const [bulkDate, setBulkDate]   = useState("");
-  const [bulkSelected, setBulkSelected] = useState([]);
-  const [regEmp, setRegEmp]             = useState("");
-  const [regDur, setRegDur]             = useState("1");
-  const [regCustomDays, setRegCustomDays] = useState("");
-  const [regDateStart, setRegDateStart] = useState("");
-  const [regNote, setRegNote]           = useState("");
-  const [regOtEmp, setRegOtEmp]         = useState("");
-  const [regOtDate, setRegOtDate]       = useState("");
-  const [regOtDur, setRegOtDur]         = useState("1");
-  const [regOtNote, setRegOtNote]       = useState("");
-  const [otViewFilter, setOtViewFilter] = useState("pending");
   const [adminDetailEmp, setAdminDetailEmp] = useState(null); // view single emp records in admin
   const [newName, setNewName]     = useState("");
   const [newAnnual, setNewAnnual] = useState(10);
@@ -109,24 +87,18 @@ export default function App() {
 
   // Employee form states
   const [empDur, setEmpDur]             = useState("1");
-  const [empCustomDays, setEmpCustomDays] = useState("");
   const [empDateStart, setEmpDateStart] = useState("");
   const [otDur, setOtDur]               = useState("1");
-  const [otCustomDays, setOtCustomDays] = useState("");
-  const [otDateStart, setOtDateStart]   = useState("");
+  const [otDateStart, setOtDateStart]   = useState(today());
   const [otNote, setOtNote]             = useState("");
 
   // ── Firestore ────────────────────────────────────────────────────────────
   useEffect(() => {
     let n = 0;
-    const done = () => { n++; if (n >= 3) setLoading(false); };
-    const u1 = listenEmployees(data => {
-      setEmployees(data);
-      done();
-    });
+    const done = () => { n++; if (n >= 2) setLoading(false); };
+    const u1 = listenEmployees(data => { setEmployees(data); done(); });
     const u2 = listenLeaveRecords(data => { setLeaveRecords(data); done(); });
-    const u3 = listenOtRequests(data  => { setOtRequests(data);   done(); });
-    return () => { u1(); u2(); u3(); };
+    return () => { u1(); u2(); };
   }, []);
 
   useEffect(() => {
@@ -172,56 +144,6 @@ export default function App() {
     showSuccess("✅ 調整完成", `已${adjDir === "+" ? "增加" : "扣除"} ${targets.map(e => e.name).join("、")} ${adjAmt} 天補休`);
     setAdjNote(""); setAdjAmt("1"); setAdjSelected([]);
   };
-
-  const doBulk = async () => {
-    if (bulkSelected.length === 0) { notify("請選擇同工", "error"); return; }
-    if (!bulkNote.trim()) { notify("請填寫說明", "error"); return; }
-    if (!bulkAmt || +bulkAmt <= 0) { notify("請輸入天數", "error"); return; }
-    const delta = +bulkAmt;
-    const targets = employees.filter(e => bulkSelected.includes(e.id));
-    for (const emp of targets) {
-      await updateEmployeeDays(emp.id, +(emp.compDays + delta).toFixed(1));
-      await addLeaveRecord({ empId: emp.id, empName: emp.name,
-        type: "補休（加假）",
-        date: bulkDate || today(), duration: `+${delta}天`, note: bulkNote, by: "後台管理" });
-    }
-    showSuccess("✅ 加假完成", `已為 ${targets.map(e => e.name).join("、")} 各增加 ${delta} 天補休`);
-    setBulkNote(""); setBulkAmt("1"); setBulkSelected([]);
-  };
-
-  const doRegLeave = async () => {
-    const emp = employees.find(e => e.id === regEmp);
-    if (!emp) { notify("請選擇同工", "error"); return; }
-    if (!regDateStart) { notify("請選擇請假日期", "error"); return; }
-    const dur = getDurVal(regDur);
-    if (!dur || dur <= 0) { notify("請輸入有效天數", "error"); return; }
-    const result = calcDeduct(emp, dur);
-    if (!result.ok) { notify(`${emp.name} 假期不足！`, "error"); return; }
-    await updateEmployeeDays(emp.id, result.newComp);
-    const dl = +regDur > 1 ? `${regDateStart} 起 ${dur} 天` : regDateStart;
-    const label = getDurLabel(regDur);
-    await addLeaveRecord({ empId: emp.id, empName: emp.name,
-      type: "請假", date: dl, duration: label,
-      note: regNote || "請假", by: "後台管理" });
-    // 寫入 Google 日曆
-    try {
-      await callAddLeaveToCalendar({ empName: emp.name, dateStart: regDateStart, days: dur, note: regNote || "請假" });
-    } catch (e) { console.warn("日曆寫入失敗", e); }
-    showSuccess("✅ 請假登記完成", `${emp.name} 請假 ${label}（${regDateStart}）已登記，並已加入共用行事曆。`);
-    setRegNote(""); setRegDateStart("");
-  };
-
-  const approveOT = async (req) => {
-    const emp = employees.find(e => e.id === req.empId);
-    if (!emp) return;
-    await updateEmployeeDays(emp.id, +(emp.compDays + req.dur).toFixed(1));
-    await updateOtStatus(req.id, "approved");
-    await addLeaveRecord({ empId: emp.id, empName: emp.name,
-      type: "登記加班", date: req.date,
-      duration: `+${req.dur}天`, note: req.note || "加班核准", by: "後台管理" });
-    notify(`已核准 ${req.empName}，+${req.dur} 天補休`);
-  };
-  const rejectOT = async (id) => { await updateOtStatus(id, "rejected"); notify("已拒絕", "error"); };
 
   const addEmployee = async () => {
     if (!newName.trim()) return;
@@ -311,18 +233,8 @@ export default function App() {
   // ── Derived ──────────────────────────────────────────────────────────────
   const me       = currentUser ? employees.find(e => e.id === currentUser.id) : null;
   const myRecs   = me ? leaveRecords.filter(r => r.empId === me.id) : [];
-  const myOtReqs = me ? otRequests.filter(r => r.empId === me.id) : [];
-  const pendingOt = otRequests.filter(r => r.status === "pending");
 
   // ── Shared UI ────────────────────────────────────────────────────────────
-  const Tog = ({ val, opts, onChange }) => (
-    <div style={S.toggle}>
-      {opts.map(([v, l]) => (
-        <button key={v} onClick={() => onChange(v)}
-          style={{ ...S.toggleBtn, ...(val === v ? S.toggleActive : {}) }}>{l}</button>
-      ))}
-    </div>
-  );
 
   // Date on top, then duration toggle below
   const NumInput = ({ value, onChange, min = 0.5 }) => (

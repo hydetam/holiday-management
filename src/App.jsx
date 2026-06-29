@@ -172,17 +172,19 @@ export default function App() {
   };
 
   const doBulk = async () => {
+    if (bulkSelected.length === 0) { notify("請選擇同工", "error"); return; }
     if (!bulkNote.trim()) { notify("請填寫說明", "error"); return; }
     if (!bulkAmt || +bulkAmt <= 0) { notify("請輸入天數", "error"); return; }
     const delta = +bulkAmt;
-    for (const emp of employees) {
+    const targets = employees.filter(e => bulkSelected.includes(e.id));
+    for (const emp of targets) {
       await updateEmployeeDays(emp.id, +(emp.compDays + delta).toFixed(1));
       await addLeaveRecord({ empId: emp.id, empName: emp.name,
-        type: "全員補休",
+        type: "補休（加假）",
         date: bulkDate || today(), duration: `+${delta}天`, note: bulkNote, by: "後台管理" });
     }
-    showSuccess("✅ 全員加假完成", `已為全部 ${employees.length} 位同工各增加 ${delta} 天補休`);
-    setBulkNote(""); setBulkAmt("");
+    showSuccess("✅ 加假完成", `已為 ${targets.map(e => e.name).join("、")} 各增加 ${delta} 天補休`);
+    setBulkNote(""); setBulkAmt("1"); setBulkSelected([]);
   };
 
   const doRegLeave = async () => {

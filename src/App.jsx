@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import {
-  listenEmployees, listenLeaveRecords,
+  listenEmployees, listenLeaveRecords, listenOtRequests,
   saveEmployee, deleteEmployee, updateEmployeeDays,
   addLeaveRecord, deleteLeaveRecord, updateLeaveRecord,
+  addOtRequest, updateOtStatus,
   callAddLeaveToCalendar,
 } from "./firebase.js";
 
@@ -45,9 +46,15 @@ const S = {
   tr:           { borderBottom:"1px solid #f1f5f9" },
   td:           { padding:"12px 14px", fontSize:13, color:"#334155" },
   badge:        { display:"inline-block", padding:"3px 10px", borderRadius:20, fontSize:12, fontWeight:600 },
+  tagLeave:     { background:"#fff7ed", color:"#c2410c", borderRadius:6, padding:"2px 8px", fontSize:11, fontWeight:700 },
+  tagOT:        { background:"#dbeafe", color:"#1d4ed8", borderRadius:6, padding:"2px 8px", fontSize:11, fontWeight:700 },
+  tagAdjust:    { background:"#f3e8ff", color:"#7c3aed", borderRadius:6, padding:"2px 8px", fontSize:11, fontWeight:700 },
+  tagAnnual:    { background:"#dcfce7", color:"#16a34a", borderRadius:6, padding:"2px 8px", fontSize:11, fontWeight:700 },
   tagComp:      { background:"#dbeafe", color:"#1d4ed8", borderRadius:6, padding:"2px 8px", fontSize:11, fontWeight:700 },
   infoBox:      { background:"#f0f9ff", border:"1px solid #bae6fd", borderRadius:8, padding:"9px 13px", fontSize:13, color:"#0369a1", marginBottom:14 },
   previewBox:   { background:"#faf5ff", border:"1px solid #d8b4fe", borderRadius:8, padding:"10px 14px", fontSize:13, color:"#6d28d9", marginBottom:16 },
+  alertBox:     { background:"#fffbeb", border:"1px solid #fcd34d", borderRadius:10, padding:"11px 14px", fontSize:13, color:"#92400e", marginBottom:18, display:"flex", alignItems:"center", gap:10 },
+  alertBtn:     { background:"#f59e0b", color:"#fff", border:"none", borderRadius:6, padding:"4px 10px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:F },
   empty:        { background:"#fff", borderRadius:14, padding:36, textAlign:"center", color:"#94a3b8", fontSize:13 },
   toast:        { position:"fixed", top:20, right:20, color:"#fff", padding:"11px 18px", borderRadius:10, fontSize:13, fontWeight:700, zIndex:9999, boxShadow:"0 4px 12px rgba(0,0,0,0.2)", fontFamily:F },
   loading:      { minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, color:"#64748b", fontFamily:F },
@@ -56,11 +63,10 @@ const S = {
   backBtn:      { background:"transparent", border:"none", color:"#2563eb", cursor:"pointer", fontSize:13, fontWeight:700, fontFamily:F, marginBottom:16, padding:0 },
 };
 
-const today = () => new Date().toISOString().split("T")[0];
-
 export default function App() {
   const [employees, setEmployees]       = useState([]);
   const [leaveRecords, setLeaveRecords] = useState([]);
+  const [otRequests, setOtRequests]     = useState([]);
   const [loading, setLoading]           = useState(true);
 
   const [role, setRole]                 = useState(null);
@@ -74,11 +80,28 @@ export default function App() {
   const [detailView, setDetailView]     = useState("records");
 
   // Admin form states
+  const [adjTarget, setAdjTarget] = useState("");
+  const [adjField, setAdjField]   = useState("annualDays");
   const [adjDir, setAdjDir]       = useState("+");
   const [adjAmt, setAdjAmt]       = useState("1");
   const [adjNote, setAdjNote]     = useState("");
-  const [adjDate, setAdjDate]     = useState(today());
+  const [adjDate, setAdjDate]     = useState(new Date().toISOString().split("T")[0]);
   const [adjSelected, setAdjSelected] = useState([]);
+  const [bulkField, setBulkField] = useState("annualDays");
+  const [bulkAmt, setBulkAmt]     = useState("1");
+  const [bulkNote, setBulkNote]   = useState("");
+  const [bulkDate, setBulkDate]   = useState(new Date().toISOString().split("T")[0]);
+  const [bulkSelected, setBulkSelected] = useState([]);
+  const [regEmp, setRegEmp]             = useState("");
+  const [regDur, setRegDur]             = useState("1");
+  const [regCustomDays, setRegCustomDays] = useState("");
+  const [regDateStart, setRegDateStart] = useState(new Date().toISOString().split("T")[0]);
+  const [regNote, setRegNote]           = useState("");
+  const [regOtEmp, setRegOtEmp]         = useState("");
+  const [regOtDate, setRegOtDate]       = useState(new Date().toISOString().split("T")[0]);
+  const [regOtDur, setRegOtDur]         = useState("1");
+  const [regOtNote, setRegOtNote]       = useState("");
+  const [otViewFilter, setOtViewFilter] = useState("pending");
   const [adminDetailEmp, setAdminDetailEmp] = useState(null); // view single emp records in admin
   const [newName, setNewName]     = useState("");
   const [newAnnual, setNewAnnual] = useState(10);
@@ -89,18 +112,24 @@ export default function App() {
 
   // Employee form states
   const [empDur, setEmpDur]             = useState("1");
-  const [empDateStart, setEmpDateStart] = useState("");
+  const [empCustomDays, setEmpCustomDays] = useState("");
+  const [empDateStart, setEmpDateStart] = useState(new Date().toISOString().split("T")[0]);
   const [otDur, setOtDur]               = useState("1");
-  const [otDateStart, setOtDateStart]   = useState(today());
+  const [otCustomDays, setOtCustomDays] = useState("");
+  const [otDateStart, setOtDateStart]   = useState(new Date().toISOString().split("T")[0]);
   const [otNote, setOtNote]             = useState("");
 
   // ── Firestore ────────────────────────────────────────────────────────────
   useEffect(() => {
     let n = 0;
-    const done = () => { n++; if (n >= 2) setLoading(false); };
-    const u1 = listenEmployees(data => { setEmployees(data); done(); });
+    const done = () => { n++; if (n >= 3) setLoading(false); };
+    const u1 = listenEmployees(data => {
+      setEmployees(data);
+      done();
+    });
     const u2 = listenLeaveRecords(data => { setLeaveRecords(data); done(); });
-    return () => { u1(); u2(); };
+    const u3 = listenOtRequests(data  => { setOtRequests(data);   done(); });
+    return () => { u1(); u2(); u3(); };
   }, []);
 
   useEffect(() => {
@@ -113,6 +142,7 @@ export default function App() {
   // ── Helpers ──────────────────────────────────────────────────────────────
   const notify = (msg, type = "success") => { setNotification({ msg, type }); setTimeout(() => setNotification(null), 3000); };
   const showSuccess = (title, body) => setSuccessModal({ title, body });
+  const today = () => new Date().toISOString().split("T")[0];
 
   const loginAdmin = () => {
     if (adminPw === ADMIN_PASSWORD) { setRole("admin"); setView("dashboard"); setPwError(false); setShowAdminLogin(false); }
@@ -139,12 +169,62 @@ export default function App() {
       const newComp = Math.max(0, +(emp.compDays + (adjDir === "+" ? +adjAmt : -adjAmt)).toFixed(1));
       await updateEmployeeDays(emp.id, newComp);
       await addLeaveRecord({ empId: emp.id, empName: emp.name,
-        type: "調整補休",
+        type: "調整",
         date: adjDate || today(), duration: `${adjDir}${adjAmt}天`, note: adjNote, by: "後台管理" });
     }
     showSuccess("✅ 調整完成", `已${adjDir === "+" ? "增加" : "扣除"} ${targets.map(e => e.name).join("、")} ${adjAmt} 天補休`);
     setAdjNote(""); setAdjAmt("1"); setAdjSelected([]);
   };
+
+  const doBulk = async () => {
+    if (bulkSelected.length === 0) { notify("請選擇同工", "error"); return; }
+    if (!bulkNote.trim()) { notify("請填寫說明", "error"); return; }
+    if (!bulkAmt || +bulkAmt <= 0) { notify("請輸入天數", "error"); return; }
+    const delta = +bulkAmt;
+    const targets = employees.filter(e => bulkSelected.includes(e.id));
+    for (const emp of targets) {
+      await updateEmployeeDays(emp.id, +(emp.compDays + delta).toFixed(1));
+      await addLeaveRecord({ empId: emp.id, empName: emp.name,
+        type: "調整",
+        date: bulkDate || today(), duration: `+${delta}天`, note: bulkNote, by: "後台管理" });
+    }
+    showSuccess("✅ 加假完成", `已為 ${targets.map(e => e.name).join("、")} 各增加 ${delta} 天補休`);
+    setBulkNote(""); setBulkAmt("1"); setBulkSelected([]);
+  };
+
+  const doRegLeave = async () => {
+    const emp = employees.find(e => e.id === regEmp);
+    if (!emp) { notify("請選擇同工", "error"); return; }
+    if (!regDateStart) { notify("請選擇請假日期", "error"); return; }
+    const dur = getDurVal(regDur);
+    if (!dur || dur <= 0) { notify("請輸入有效天數", "error"); return; }
+    const result = calcDeduct(emp, dur);
+    if (!result.ok) { notify(`${emp.name} 假期不足！`, "error"); return; }
+    await updateEmployeeDays(emp.id, result.newComp);
+    const dl = +regDur > 1 ? `${regDateStart} 起 ${dur} 天` : regDateStart;
+    const label = getDurLabel(regDur);
+    await addLeaveRecord({ empId: emp.id, empName: emp.name,
+      type: "請假", date: dl, duration: label,
+      note: regNote || "請假", by: "後台管理" });
+    // 寫入 Google 日曆
+    try {
+      await callAddLeaveToCalendar({ empName: emp.name, dateStart: regDateStart, days: dur, note: regNote || "請假" });
+    } catch (e) { console.warn("日曆寫入失敗", e); }
+    showSuccess("✅ 請假登記完成", `${emp.name} 請假 ${label}（${regDateStart}）已登記，並已加入共用行事曆。`);
+    setRegNote(""); setRegDateStart("");
+  };
+
+  const approveOT = async (req) => {
+    const emp = employees.find(e => e.id === req.empId);
+    if (!emp) return;
+    await updateEmployeeDays(emp.id, +(emp.compDays + req.dur).toFixed(1));
+    await updateOtStatus(req.id, "approved");
+    await addLeaveRecord({ empId: emp.id, empName: emp.name,
+      type: "加班", date: req.date,
+      duration: `+${req.dur}天`, note: req.note || "加班核准", by: "後台管理" });
+    notify(`已核准 ${req.empName}，+${req.dur} 天補休`);
+  };
+  const rejectOT = async (id) => { await updateOtStatus(id, "rejected"); notify("已拒絕", "error"); };
 
   const addEmployee = async () => {
     if (!newName.trim()) return;
@@ -225,7 +305,7 @@ export default function App() {
     const emp = employees.find(e => e.id === currentUser.id);
     await updateEmployeeDays(emp.id, +(emp.compDays + dur).toFixed(1));
     await addLeaveRecord({ empId: emp.id, empName: emp.name,
-      type: "登記加班", date: otDateStart,
+      type: "加班", date: otDateStart,
       duration: `+${dur}天`, note: otNote || "加班", by: emp.name });
     showSuccess("✅ 加班補休登記成功", `已新增 ${dur} 天補休（${otDateStart}），天數即時更新。`);
     setOtDateStart(""); setOtNote(""); setOtDur("1");
@@ -234,8 +314,18 @@ export default function App() {
   // ── Derived ──────────────────────────────────────────────────────────────
   const me       = currentUser ? employees.find(e => e.id === currentUser.id) : null;
   const myRecs   = me ? leaveRecords.filter(r => r.empId === me.id) : [];
+  const myOtReqs = me ? otRequests.filter(r => r.empId === me.id) : [];
+  const pendingOt = otRequests.filter(r => r.status === "pending");
 
   // ── Shared UI ────────────────────────────────────────────────────────────
+  const Tog = ({ val, opts, onChange }) => (
+    <div style={S.toggle}>
+      {opts.map(([v, l]) => (
+        <button key={v} onClick={() => onChange(v)}
+          style={{ ...S.toggleBtn, ...(val === v ? S.toggleActive : {}) }}>{l}</button>
+      ))}
+    </div>
+  );
 
   // Date on top, then duration toggle below
   const NumInput = ({ value, onChange, min = 0.5 }) => (
@@ -284,6 +374,13 @@ export default function App() {
       </div>
     </div>
   );
+
+  const getTag = (type) => {
+    if (type === "請假") return S.tagLeave;
+    if (type === "加班") return S.tagOT;
+    if (type === "調整") return S.tagAdjust;
+    return S.tagComp;
+  };
 
   const Toast = () => notification
     ? <div style={{ ...S.toast, background: notification.type === "error" ? "#ef4444" : "#10b981" }}>{notification.msg}</div>
@@ -401,7 +498,7 @@ export default function App() {
                   <tbody>
                     {myRecs.map(r => (
                       <tr key={r.id} style={S.tr}>
-                        <td style={S.td}><span style={S.tagComp}>{r.type}</span></td>
+                        <td style={S.td}><span style={getTag(r.type)}>{r.type}</span></td>
                         <td style={S.td}>{r.date || "—"}</td>
                         <td style={S.td}>{r.duration}</td>
                         <td style={S.td}>{r.note || "請假"}</td>
@@ -510,7 +607,7 @@ export default function App() {
                           <tbody>
                             {recs.map(r => (
                               <tr key={r.id} style={S.tr}>
-                                <td style={S.td}><span style={S.tagComp}>{r.type}</span></td>
+                                <td style={S.td}><span style={getTag(r.type)}>{r.type}</span></td>
                                 <td style={S.td}>{r.date || "—"}</td>
                                 <td style={S.td}>{r.duration}</td>
                                 <td style={S.td}>{r.note}</td>
@@ -649,16 +746,21 @@ export default function App() {
           {leaveRecords.length === 0 ? <div style={S.empty}>目前沒有紀錄</div> : (
             <div style={S.tableWrap}>
               <table style={S.table}>
-                <thead><tr>{["同工","類型","日期","天數","備註","操作者","操作"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                <thead><tr>{["同工","類型","日期","天數","備註","操作者","登記時間","操作"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
                 <tbody>
                   {leaveRecords.map(r => (
                     <tr key={r.id} style={S.tr}>
                       <td style={S.td}>{r.empName}</td>
-                      <td style={S.td}><span style={S.tagComp}>{r.type}</span></td>
+                      <td style={S.td}><span style={getTag(r.type)}>{r.type}</span></td>
                       <td style={S.td}>{r.date || "—"}</td>
                       <td style={S.td}>{r.duration}</td>
                       <td style={S.td}>{r.note}</td>
                       <td style={S.td}>{r.by}</td>
+                      <td style={S.td} title={r.createdAt?.toDate?.()?.toLocaleString("zh-TW") || ""}>
+                        {r.createdAt?.toDate?.()
+                          ? r.createdAt.toDate().toLocaleString("zh-TW", { month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" })
+                          : "—"}
+                      </td>
                       <td style={S.td}>
                         <div style={{ display:"flex", gap:6 }}>
                           <button onClick={() => openEditRec(r)} style={{ ...S.btnSm, background:"#eff6ff", color:"#2563eb" }}>✏️</button>

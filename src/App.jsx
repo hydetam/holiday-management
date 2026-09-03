@@ -169,7 +169,7 @@ export default function App() {
       const newComp = Math.max(0, +(emp.compDays + (adjDir === "+" ? +adjAmt : -adjAmt)).toFixed(1));
       await updateEmployeeDays(emp.id, newComp);
       await addLeaveRecord({ empId: emp.id, empName: emp.name,
-        type: "調整",
+        type: adjDir === "+" ? "加班" : "請假",
         date: adjDate || today(), duration: `${adjDir}${adjAmt}天`, note: adjNote, by: "後台管理" });
     }
     showSuccess("✅ 調整完成", `已${adjDir === "+" ? "增加" : "扣除"} ${targets.map(e => e.name).join("、")} ${adjAmt} 天補休`);
@@ -185,7 +185,7 @@ export default function App() {
     for (const emp of targets) {
       await updateEmployeeDays(emp.id, +(emp.compDays + delta).toFixed(1));
       await addLeaveRecord({ empId: emp.id, empName: emp.name,
-        type: "調整",
+        type: "加班",
         date: bulkDate || today(), duration: `+${delta}天`, note: bulkNote, by: "後台管理" });
     }
     showSuccess("✅ 加假完成", `已為 ${targets.map(e => e.name).join("、")} 各增加 ${delta} 天補休`);
